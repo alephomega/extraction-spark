@@ -3,15 +3,15 @@ package com.kakaopage.crm.extraction.spark
 import java.sql.Timestamp
 import java.time.format.DateTimeFormatter
 import java.time.{Duration, Instant, ZoneId}
-import java.util
 import java.util.Date
-import java.util.concurrent.TimeUnit
 
 import com.kakaopage.crm.extraction
+import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
-import org.apache.spark.SparkConf
+import com.kakaopage.crm.extraction.predicates._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Column, SparkSession}
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{Column, Row}
 
 import scala.collection.JavaConverters._
 
@@ -21,17 +21,15 @@ object Functions {
     DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.of(timezone))
   }
 
-  def parse = udf((text: String, pattern: String, timezone: String) => {
+  def parse: (String, String, String) => Timestamp = (text: String, pattern: String, timezone: String) => {
     new Timestamp(Date.from(Instant.from(formatter(pattern, timezone).parse(text))).getTime)
-  })
+  }
 
-  def format = udf((time: Timestamp, pattern: String, timezone: String) => {
+  def format: (Timestamp, String, String) => String = (time: Timestamp, pattern: String, timezone: String) => {
     formatter(pattern, timezone).format(time.toInstant)
-  })
+  }
 
-  def now = udf(() => new Timestamp(System.currentTimeMillis))
-
-  def diffTime = udf((_1: Timestamp, _2: Timestamp, unit: String) => {
+  def diffTime: (Timestamp, Timestamp, String) => Long = (_1: Timestamp, _2: Timestamp, unit: String) => {
     val duration = Duration.between(_1.toInstant, _2.toInstant)
 
     unit match {
@@ -40,133 +38,201 @@ object Functions {
       case "minutes" => duration.toMinutes
       case "seconds" => duration.getSeconds
       case "milliseconds" => duration.toMillis
-      case "microseconds" => duration.toMillis * 1000
+      case "microseconds" => 1000 * duration.toMillis
       case "nanoseconds" => duration.toNanos
     }
-  })
+  }
 
-  def sumOf = udf((a: Seq[Double]) => a.sum)
+  def now: () => Timestamp = () => new Timestamp(System.currentTimeMillis)
 
 
-  val invoke: (extraction.Function) => Column = {
+  private object UDF {
 
-    case f: Time => {
-      parse(invoke(f.getText), lit(f.getPattern), lit(f.getTimezone))
-    }
+    def parse = udf(Functions.parse)
 
-    case f: TimeFormat => {
-      val pattern: String = f.getPattern
-      val tz: String = f.getTimezone
+    def format = udf(Functions.format)
 
-      format(invoke(f.getTime), lit(pattern), lit(tz))
-    }
+    def now = udf(Functions.now)
 
-    case f: DiffTime => {
-      val _1 = invoke(f.firsTime)
-      val _2 = invoke(f.secondTime)
-      val unit: TimeUnit = f.getUnit
-
-      diffTime(_1, _2, lit(unit.name().toLowerCase()))
-    }
-
-    case f: Now => {
-      now()
-    }
-
-    case f: Cardinality => {
-      size(invoke(f.getArray))
-    }
-
-    case f: ElementAt => {
-      invoke(f.getArray).getItem(f.getIndex)
-    }
-
-    case f: Contains[_] => {
-      array_contains(invoke(f.getArray), f.getValue)
-    }
-
-    case f: MaxOf => {
-      sort_array(invoke(f.getArray), asc = false).getItem(0)
-    }
-
-    case f: MinOf => {
-      sort_array(invoke(f.getArray), asc = true).getItem(0)
-    }
-
-    case f: Explode => {
-      explode(invoke(f.getArray))
-    }
-
-    case f: ArrayOf => {
-      val cols = f.getElements.asScala.map(element => lit(invoke(element))).toArray
-      array(cols: _*)
-    }
-
-    case f: Value => {
-      val attribute = f.getAttribute
-      col(attribute)
-    }
-
-    case f: Constant[_] => {
-      lit(f.getValue)
-    }
+    def diffTime = udf(Functions.diffTime)
   }
 
 
+  private def gt[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.gt(a, b)
+
+  private def lt[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.lt(a, b)
+
+  private def geq[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.gteq(a, b)
+
+  private def leq[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.lteq(a, b)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("function-test").setMaster("local")
-
-    val spark = SparkSession.builder.config(conf).getOrCreate
-    val context = spark.sqlContext
-
-    import spark.implicits._
-
-
-    var df = Seq(
-      ("2019-02-01T00:00:00+07:00", Array(1, 2, 3)),
-      ("2019-02-02T00:00:00+07:00", Array(4, 0, 6)),
-      ("2019-02-03T00:00:00+07:00", Array(7, -8, 9)),
-      ("2019-02-04T00:00:00+07:00", Array(0, 0, 0))
-    ).toDF("at", "values")
-
-    df = df.withColumn("diff", lit(Functions.invoke(new DiffTime(new Time(new Value("at"), "yyyy-MM-dd'T'HH:mm:ssXXX", "Asia/Jakarta"), new Now(), TimeUnit.DAYS))))
-    df = df.withColumn("elem_2", lit(Functions.invoke(new ElementAt(new Value("values"), 1))))
-    df = df.withColumn("max", Functions.invoke(new MaxOf(new Value("values"))))
-    df = df.withColumn("min", Functions.invoke(new MinOf(new Value("values"))))
-    df = df.withColumn("contains", Functions.invoke(new Contains[Int](new Value("values"), 0)))
-    df = df.withColumn("pos", Functions.invoke(new MaxOf(new Value("values"))).gt(0))
-
-    val elems = new util.ArrayList[extraction.Function]()
-    elems.add(new Constant[String]("a"))
-    elems.add(new Constant[String]("b"))
-    elems.add(new Constant[String]("c"))
-    df = df.withColumn("array", Functions.invoke(new ArrayOf(elems)))
-
-//    df = df.filter(Predicates.run(new Equal(new DiffTime(new Time(new Value("at"), "yyyy-MM-dd'T'HH:mm:ssXXX", "Asia/Jakarta"), new Now(), TimeUnit.DAYS), new Constant[Int](28))))
-
-//    df = df.withColumn(
-//      "sum",
-//      call(new SumOf(new Value("values")), df).asInstanceOf[Column]
-//    )
-
-    df.show(5, false)
+  private def ov(v: Any): Any = {
+    v match {
+      case a: String => a
+      case a: Double => a
+      case a: Float => a.toDouble
+      case a: Long => a
+      case a: Int => a.toLong
+      case a: Short => a.toLong
+      case a: Byte => a.toLong
+      case _ => toString
+    }
   }
+
+  private def max(x: Any, y: Any): Any = {
+    (ov(x), ov(y)) match {
+      case (a: String, b:String) => max(a, b)
+      case (a: Double, b:Double) => max(a, b)
+      case (a: Long, b:Long) => max(a, b)
+      case _ =>
+    }
+  }
+
+  private def min(x: Any, y: Any): Any = {
+    (ov(x), ov(y)) match {
+      case (a: String, b:String) => min(a, b)
+      case (a: Double, b:Double) => min(a, b)
+      case (a: Long, b:Long) => min(a, b)
+      case _ =>
+    }
+  }
+
+  def eval(condition: Predicate, row: Row): Boolean = {
+
+    condition match {
+      case p: Equals => invoke(p.firstOperand(), row).equals(invoke(p.secondOperand(), row))
+
+      case p: GreaterThan =>
+        val _1 = invoke(p.firstOperand(), row)
+        val _2 = invoke(p.secondOperand(), row)
+
+        (ov(_1), ov(_2)) match {
+          case (a: String, b:String) => gt(a, b)
+          case (a: Double, b:Double) => gt(a, b)
+          case (a: Long, b:Long) => gt(a, b)
+          case _ => false
+        }
+
+      case p: GreaterThanOrEqualTo =>
+        val _1 = invoke(p.firstOperand(), row)
+        val _2 = invoke(p.secondOperand(), row)
+
+        (ov(_1), ov(_2)) match {
+          case (a: String, b:String) => geq(a, b)
+          case (a: Double, b:Double) => geq(a, b)
+          case (a: Long, b:Long) => geq(a, b)
+          case _ => false
+        }
+
+      case p: LessThan =>
+        val _1 = invoke(p.firstOperand(), row)
+        val _2 = invoke(p.secondOperand(), row)
+
+        (ov(_1), ov(_2)) match {
+          case (a: String, b:String) => lt(a, b)
+          case (a: Double, b:Double) => lt(a, b)
+          case (a: Long, b:Long) => lt(a, b)
+          case _ => false
+        }
+
+      case p: LessThanOrEqualTo =>
+        val _1 = invoke(p.firstOperand(), row)
+        val _2 = invoke(p.secondOperand(), row)
+
+        (ov(_1), ov(_2)) match {
+          case (a: String, b:String) => leq(a, b)
+          case (a: Double, b:Double) => leq(a, b)
+          case (a: Long, b:Long) => leq(a, b)
+          case _ => false
+        }
+
+      case p: In[_] => p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
+    }
+  }
+
+  def filter(condition: Predicate) = {
+    condition match {
+      case c: Conjunction => udf((rs: Seq[Row]) => {
+        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r)))
+      }, schema)
+
+      case c: Disjunction => udf((rs: Seq[Row]) => {
+        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r)))
+      }, schema)
+
+      case c: Negation => udf((rs: Seq[Row]) => {
+        val p = c.getPredicate
+        rs.filter(r => !eval(p, r))
+      }, schema)
+
+      case c: Predicate => udf((rs: Seq[Row]) => {
+        rs.filter(r => eval(c, r))
+      }, schema)
+    }
+  }
+
+  val column: (extraction.Function) => Column = {
+
+    case f: Time => UDF.parse(column(f.getText), lit(f.getPattern), lit(f.getTimezone))
+
+    case f: TimeFormat => UDF.format(column(f.getTime), lit(f.getPattern), lit(f.getTimezone))
+
+    case f: DiffTime => UDF.diffTime(column(f.firsTime), column(f.secondTime), lit(f.getUnit.name().toLowerCase()))
+
+    case f: Now => UDF.now()
+
+    case f: Cardinality => size(column(f.getArray))
+
+    case f: ElementAt => column(f.getArray).getItem(f.getIndex)
+
+    case f: Contains[_] => array_contains(column(f.getArray), f.getValue)
+
+    case f: MaxOf => sort_array(column(f.getArray), asc = false).getItem(0)
+
+    case f: MinOf => sort_array(column(f.getArray), asc = true).getItem(0)
+
+    case f: Explode => explode(column(f.getArray))
+
+    case f: ArrayOf => array(f.getElements.asScala.map(element => lit(column(element))): _*)
+
+    case f: Filter => filter(f.getPredicate)(column(f.getArray))
+
+    case f: Value => col(f.getAttribute)
+
+    case f: Constant[_] => lit(f.getValue)
+  }
+
+
+  val invoke: (extraction.Function, Row) => Any = {
+    case (f: Time, r: Row) => parse(invoke(f.getText, r).asInstanceOf[String], f.getPattern, f.getTimezone)
+
+    case (f: TimeFormat, r: Row) => format(invoke(f.getTime, r).asInstanceOf[Timestamp], f.getPattern, f.getTimezone)
+
+    case (f: DiffTime, r: Row) => diffTime(invoke(f.firsTime, r).asInstanceOf[Timestamp], invoke(f.secondTime, r).asInstanceOf[Timestamp], f.getUnit.name().toLowerCase())
+
+    case (f: Now, r: Row) => now()
+
+    case (f: Cardinality, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].size
+
+    case (f: ElementAt, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]](f.getIndex)
+
+    case (f: Contains[_], r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].contains(f.getValue)
+
+    case (f: MaxOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(max)
+
+    case (f: MinOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(min)
+
+    case (f: ArrayOf, r: Row) => f.getElements.asScala.map(element => invoke(element, r))
+
+    case (f: Value, r: Row) => r.get(r.fieldIndex(f.getAttribute))
+
+    case (f: Constant[_], r: Row) => f.getValue
+  }
+
+
+  val schema = {
+    ArrayType(StructType(Seq(StructField("at", StringType), StructField("ev", StringType), StructField("meta", StructType(Seq(StructField("amount", DoubleType), StructField("episode", StringType), StructField("item", StringType), StructField("series", StringType)))))))
+  }
+
 }
