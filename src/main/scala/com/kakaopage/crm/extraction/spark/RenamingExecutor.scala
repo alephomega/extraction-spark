@@ -1,7 +1,6 @@
 package com.kakaopage.crm.extraction.spark
 
 import com.kakaopage.crm.extraction.ra.Renaming
-import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
 

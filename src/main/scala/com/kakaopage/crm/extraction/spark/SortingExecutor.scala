@@ -1,7 +1,6 @@
 package com.kakaopage.crm.extraction.spark
 
 import com.kakaopage.crm.extraction.ra.Sorting
-import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
 
 import scala.collection.JavaConverters._
