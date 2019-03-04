@@ -7,7 +7,8 @@ import org.apache.spark.sql.functions._
 import scala.collection.JavaConverters._
 
 object SortingExecutor extends UnaryRelationalAlgebraOperatorExecutor[Sorting] {
-  override def execute(df: DataFrame, sorting: Sorting): DataFrame = {
+
+  override def execute(ds: RelationDataset, sorting: Sorting, as: String): RelationDataset = {
     val cols = sorting.getOrderings.asScala.map(o => {
       o.getOrderBy.name().toLowerCase match {
         case "asc" => asc(o.getColumn)
@@ -15,6 +16,6 @@ object SortingExecutor extends UnaryRelationalAlgebraOperatorExecutor[Sorting] {
       }
     })
 
-    df.orderBy(cols: _*)
+    RelationDataset(ds.df.orderBy(cols: _*), as)
   }
 }

@@ -4,20 +4,19 @@ import java.util
 
 import com.kakaopage.crm.extraction._
 import com.kakaopage.crm.extraction.ra._
-import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
 import scala.collection._
 
 
-class ExtractionJobExecutor(val extraction: Extraction) {
-  val sets = mutable.Map[String, DataFrame]()
-  val steps: util.List[Step] = Serializer.serialize(extraction)
+class ExtractionJobExecutor(val description: String) {
+  val sets = mutable.Map[String, RelationDataset]()
+  val steps: util.List[Step] = Serializer.serialize(Extraction.of(description))
 
-  def setOf(name: String) = {
+  def datasetOf(name: String) = {
     sets.get(name) match {
-      case Some(df) => df.alias(name)
-      case _ => throw new RuntimeException
+      case Some(ds) => ds
+      case _ => throw new ExtractionException("There is no set (%s)".format(name))
     }
   }
 
@@ -29,40 +28,43 @@ class ExtractionJobExecutor(val extraction: Extraction) {
     step match {
 
       case assignment: Assignment => {
-        val variable = assignment.getVariable
+        val as = assignment.getVariable
 
         val ds = assignment.getOperation match {
-          case selection: Selection => SelectionExecutor.execute(null, selection)
 
-          case projection: Projection => ProjectionExecutor.execute(setOf(nameOf(projection.getRelation)), projection)
+          case selection: Selection => SelectionExecutor.execute(null, selection, as)
 
-          case renaming: Renaming => RenamingExecutor.execute(setOf(nameOf(renaming.getRelation)), renaming)
+          case projection: Projection => ProjectionExecutor.execute(datasetOf(nameOf(projection.getRelation)), projection, as)
 
-          case grouping: Grouping => GroupingExecutor.execute(setOf(nameOf(grouping.getRelation)), grouping)
+          case renaming: Renaming => RenamingExecutor.execute(datasetOf(nameOf(renaming.getRelation)), renaming, as)
 
-          case product: Product => ProductExecutor.execute(setOf(nameOf(product.firstRelation)), setOf(nameOf(product.secondRelation)), product)
+          case grouping: Grouping => GroupingExecutor.execute(datasetOf(nameOf(grouping.getRelation)), grouping, as)
 
-          case join: LeftOuterJoin => LeftOuterJoinExecutor.execute(setOf(nameOf(join.firstRelation)), setOf(nameOf(join.secondRelation)), join)
+          case product: Product => ProductExecutor.execute(datasetOf(nameOf(product.firstRelation)), datasetOf(nameOf(product.secondRelation)), product, as)
 
-          case join: RightOuterJoin => RightOuterJoinExecutor.execute(setOf(nameOf(join.firstRelation)), setOf(nameOf(join.secondRelation)), join)
+          case join: LeftOuterJoin => LeftOuterJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case join: FullOuterJoin => FullOuterJoinExecutor.execute(setOf(nameOf(join.firstRelation)), setOf(nameOf(join.secondRelation)), join)
+          case join: RightOuterJoin => RightOuterJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case sorting: Sorting => SortingExecutor.execute(setOf(nameOf(sorting.getRelation)), sorting)
+          case join: FullOuterJoin => FullOuterJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(setOf(nameOf(distinction.getRelation)), distinction)
+          case join: Join => ThetaJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+
+          case sorting: Sorting => SortingExecutor.execute(datasetOf(nameOf(sorting.getRelation)), sorting, as)
+
+          case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(datasetOf(nameOf(distinction.getRelation)), distinction, as)
         }
 
-        sets.put(variable, ds)
+        sets.put(as, ds)
       }
 
       case sink: Sink => {
-        SinkExecutor.execute(setOf(nameOf(sink.getRelation)), sink)
+        SinkExecutor.execute(datasetOf(nameOf(sink.getRelation)), sink)
       }
     }
   }
 
-  def execute = steps.asScala.foreach(executeStep)
+  def execute() = steps.asScala.foreach(executeStep)
 }
 
 

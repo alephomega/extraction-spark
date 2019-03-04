@@ -1,10 +1,19 @@
 package com.kakaopage.crm.extraction.spark
 
 import com.kakaopage.crm.extraction.ra.Join
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql._
 
-object JoinExecutor extends BinaryRelationalAlgebraOperatorExecutor[Join] {
-  override def execute(df1: DataFrame, df2: DataFrame, join: Join): DataFrame = {
-    df1.join(df2, Predicates.eval(join.getCondition))
+trait JoinExecutor[T <: Join] extends BinaryRelationalAlgebraOperatorExecutor[T] {
+  def joinType: String
+
+  def deleteCol(j: DataFrame, r: DataFrame, cols: Seq[String]): DataFrame = {
+    if (cols.size == 0) j else deleteCol(j.drop(r(cols.head)), r, cols.tail)
+  }
+
+  override def execute(ds1: RelationDataset, ds2: RelationDataset, join: T, as: String): RelationDataset = {
+    val df = ds1.df.join(ds2.df, Predicates.eval(join.getCondition, Seq(ds1, ds2)), joinType = joinType)
+
+    val cols = df.columns.groupBy(identity).mapValues(_.size).filter(_._2 > 1).keySet.toSeq
+    RelationDataset(deleteCol(df, ds2.df, cols), as)
   }
 }

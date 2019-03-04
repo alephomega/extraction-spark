@@ -1,32 +1,30 @@
 package com.kakaopage.crm.extraction.spark
 
 import java.sql.Timestamp
+import java.time._
 import java.time.format.DateTimeFormatter
-import java.time.{Duration, Instant, ZoneId}
 import java.util.Date
 
 import com.kakaopage.crm.extraction
 import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
+import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Column, Row}
+import org.apache.spark.sql.{Column, DataFrame, Dataset, Row}
 
 import scala.collection.JavaConverters._
 
 object Functions {
 
-  def formatter(pattern: String, timezone: String): DateTimeFormatter = {
-    DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.of(timezone))
-  }
-
-  def parse: (String, String, String) => Timestamp = (text: String, pattern: String, timezone: String) => {
-    new Timestamp(Date.from(Instant.from(formatter(pattern, timezone).parse(text))).getTime)
+  def parse: (String) => Timestamp = (text: String) => {
+    new Timestamp(Date.from(Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(text))).getTime)
   }
 
   def format: (Timestamp, String, String) => String = (time: Timestamp, pattern: String, timezone: String) => {
-    formatter(pattern, timezone).format(time.toInstant)
+    val formatter = DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.of(timezone))
+    formatter.format(time.toInstant)
   }
 
   def diffTime: (Timestamp, Timestamp, String) => Long = (_1: Timestamp, _2: Timestamp, unit: String) => {
@@ -82,19 +80,24 @@ object Functions {
 
   private def max(x: Any, y: Any): Any = {
     (ov(x), ov(y)) match {
-      case (a: String, b:String) => max(a, b)
-      case (a: Double, b:Double) => max(a, b)
-      case (a: Long, b:Long) => max(a, b)
-      case _ =>
+      case (a: String, b:String) => if (geq(a, b)) a else b
+      case (a: Double, b:Double) => math.max(a, b)
+      case (a: Long, b:Long) => math.max(a, b)
     }
   }
 
   private def min(x: Any, y: Any): Any = {
     (ov(x), ov(y)) match {
-      case (a: String, b:String) => min(a, b)
-      case (a: Double, b:Double) => min(a, b)
-      case (a: Long, b:Long) => min(a, b)
-      case _ =>
+      case (a: String, b:String) => if (leq(a, b)) a else b
+      case (a: Double, b:Double) => math.min(a, b)
+      case (a: Long, b:Long) => math.min(a, b)
+    }
+  }
+
+  private def sum(x: Any, y: Any): Any = {
+    (ov(x), ov(y)) match {
+      case (a: Double, b:Double) => a + b
+      case (a: Long, b:Long) => a + b
     }
   }
 
@@ -172,40 +175,59 @@ object Functions {
     }
   }
 
-  val column: (extraction.Function) => Column = {
+  private def getAlias(ds: Dataset[_]) = ds.queryExecution.analyzed match {
+    case SubqueryAlias(alias, _) => Some(alias)
+    case _ => None
+  }
 
-    case f: Time => UDF.parse(column(f.getText), lit(f.getPattern), lit(f.getTimezone))
+  private def find(ds: Seq[DataFrame], alias: String): Option[DataFrame] = {
+    ds.find(d => {
+      getAlias(d) match {
+        case Some(a) => a.equals(alias)
+        case _ => false
+      }
+    })
+  }
 
-    case f: TimeFormat => UDF.format(column(f.getTime), lit(f.getPattern), lit(f.getTimezone))
+  val column: (extraction.Function, Seq[RelationDataset]) => Column = {
 
-    case f: DiffTime => UDF.diffTime(column(f.firsTime), column(f.secondTime), lit(f.getUnit.name().toLowerCase()))
+    case (f: Time, s: Seq[RelationDataset]) => UDF.parse(column(f.getText, s))
 
-    case f: Now => UDF.now()
+    case (f: TimeFormat, s: Seq[RelationDataset]) => UDF.format(column(f.getTime, s), lit(f.getPattern), lit(f.getTimezone))
 
-    case f: Cardinality => size(column(f.getArray))
+    case (f: DiffTime, s: Seq[RelationDataset]) => UDF.diffTime(column(f.firsTime, s), column(f.secondTime, s), lit(f.getUnit.name().toLowerCase()))
 
-    case f: ElementAt => column(f.getArray).getItem(f.getIndex)
+    case (f: Now, s: Seq[RelationDataset]) => UDF.now()
 
-    case f: Contains[_] => array_contains(column(f.getArray), f.getValue)
+    case (f: Cardinality, s: Seq[RelationDataset]) => size(column(f.getArray, s))
 
-    case f: MaxOf => sort_array(column(f.getArray), asc = false).getItem(0)
+    case (f: ElementAt, s: Seq[RelationDataset]) => column(f.getArray, s).getItem(f.getIndex)
 
-    case f: MinOf => sort_array(column(f.getArray), asc = true).getItem(0)
+    case (f: Contains[_], s: Seq[RelationDataset]) => array_contains(column(f.getArray, s), f.getValue)
 
-    case f: Explode => explode(column(f.getArray))
+    case (f: MaxOf, s: Seq[RelationDataset]) => sort_array(column(f.getArray, s), asc = false).getItem(0)
 
-    case f: ArrayOf => array(f.getElements.asScala.map(element => lit(column(element))): _*)
+    case (f: MinOf, s: Seq[RelationDataset]) => sort_array(column(f.getArray, s), asc = true).getItem(0)
 
-    case f: Filter => filter(f.getPredicate)(column(f.getArray))
+    case (f: Explode, s: Seq[RelationDataset]) => explode(column(f.getArray, s))
 
-    case f: Value => col(f.getAttribute)
+    case (f: ArrayOf, s: Seq[RelationDataset]) => array(f.getElements.asScala.map(element => lit(column(element, s))): _*)
 
-    case f: Constant[_] => lit(f.getValue)
+    case (f: Filter, s: Seq[RelationDataset]) => filter(f.getPredicate)(column(f.getArray, s))
+
+    case (f: Constant[_], s: Seq[RelationDataset]) => lit(f.getValue)
+
+    case (f: Value, s: Seq[RelationDataset]) => {
+      s.find(ds => ds.name.equals(f.getDataset)) match {
+        case Some(ds) => ds.df.col(f.getAttribute)
+        case _ => col(f.getAttribute)
+      }
+    }
   }
 
 
   val invoke: (extraction.Function, Row) => Any = {
-    case (f: Time, r: Row) => parse(invoke(f.getText, r).asInstanceOf[String], f.getPattern, f.getTimezone)
+    case (f: Time, r: Row) => parse(invoke(f.getText, r).asInstanceOf[String])
 
     case (f: TimeFormat, r: Row) => format(invoke(f.getTime, r).asInstanceOf[Timestamp], f.getPattern, f.getTimezone)
 
@@ -218,6 +240,8 @@ object Functions {
     case (f: ElementAt, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]](f.getIndex)
 
     case (f: Contains[_], r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].contains(f.getValue)
+
+    case (f: SumOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(sum)
 
     case (f: MaxOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(max)
 
