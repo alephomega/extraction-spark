@@ -32,27 +32,38 @@ class ExtractionJobExecutor(val description: String) {
 
         val ds = assignment.getOperation match {
 
-          case selection: Selection => SelectionExecutor.execute(null, selection, as)
+          case selection: Selection => SelectionExecutor.execute(
+            null, selection, as)
 
-          case projection: Projection => ProjectionExecutor.execute(datasetOf(nameOf(projection.getRelation)), projection, as)
+          case projection: Projection => ProjectionExecutor.execute(
+            datasetOf(nameOf(projection.getRelation)), projection, as)
 
-          case renaming: Renaming => RenamingExecutor.execute(datasetOf(nameOf(renaming.getRelation)), renaming, as)
+          case renaming: Renaming => RenamingExecutor.execute(
+            datasetOf(nameOf(renaming.getRelation)), renaming, as)
 
-          case grouping: Grouping => GroupingExecutor.execute(datasetOf(nameOf(grouping.getRelation)), grouping, as)
+          case grouping: Grouping => GroupingExecutor.execute(
+            datasetOf(nameOf(grouping.getRelation)), grouping, as)
 
-          case product: Product => ProductExecutor.execute(datasetOf(nameOf(product.firstRelation)), datasetOf(nameOf(product.secondRelation)), product, as)
+          case product: Product => ProductExecutor.execute(
+            datasetOf(nameOf(product.firstRelation)), datasetOf(nameOf(product.secondRelation)), product, as)
 
-          case join: LeftOuterJoin => LeftOuterJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+          case join: LeftOuterJoin => LeftOuterJoinExecutor.execute(
+            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case join: RightOuterJoin => RightOuterJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+          case join: RightOuterJoin => RightOuterJoinExecutor.execute(
+            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case join: FullOuterJoin => FullOuterJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+          case join: FullOuterJoin => FullOuterJoinExecutor.execute(
+            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case join: Join => ThetaJoinExecutor.execute(datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+          case join: Join => ThetaJoinExecutor.execute(
+            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
 
-          case sorting: Sorting => SortingExecutor.execute(datasetOf(nameOf(sorting.getRelation)), sorting, as)
+          case sorting: Sorting => SortingExecutor.execute(
+            datasetOf(nameOf(sorting.getRelation)), sorting, as)
 
-          case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(datasetOf(nameOf(distinction.getRelation)), distinction, as)
+          case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(
+            datasetOf(nameOf(distinction.getRelation)), distinction, as)
         }
 
         sets.put(as, ds)

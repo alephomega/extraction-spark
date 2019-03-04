@@ -9,17 +9,19 @@ import com.kakaopage.crm.extraction
 import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
-import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
+import com.kakaopage.crm.extraction.spark.{RelationDataset => RDS}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Column, DataFrame, Dataset, Row}
+import org.apache.spark.sql.{Column, Row}
 
 import scala.collection.JavaConverters._
 
 object Functions {
 
   def parse: (String) => Timestamp = (text: String) => {
-    new Timestamp(Date.from(Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(text))).getTime)
+    new Timestamp(Date.from(
+      Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(text))
+    ).getTime)
   }
 
   def format: (Timestamp, String, String) => String = (time: Timestamp, pattern: String, timezone: String) => {
@@ -44,7 +46,7 @@ object Functions {
   def now: () => Timestamp = () => new Timestamp(System.currentTimeMillis)
 
 
-  private object UDF {
+  object UDF {
 
     def parse = udf(Functions.parse)
 
@@ -56,17 +58,17 @@ object Functions {
   }
 
 
-  private def gt[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.gt(a, b)
+  def gt[T](x:T, y:T)(implicit ordering:Ordering[T]) = ordering.gt(x, y)
 
-  private def lt[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.lt(a, b)
+  def lt[T](x:T, y:T)(implicit ordering:Ordering[T]) = ordering.lt(x, y)
 
-  private def geq[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.gteq(a, b)
+  def geq[T](x:T, y:T)(implicit ordering:Ordering[T]) = ordering.gteq(x, y)
 
-  private def leq[T](a:T, b:T)(implicit ordering:Ordering[T]) = ordering.lteq(a, b)
+  def leq[T](x:T, y:T)(implicit ordering:Ordering[T]) = ordering.lteq(x, y)
 
 
-  private def ov(v: Any): Any = {
-    v match {
+  private def ov(x: Any): Any = {
+    x match {
       case a: String => a
       case a: Double => a
       case a: Float => a.toDouble
@@ -78,7 +80,7 @@ object Functions {
     }
   }
 
-  private def max(x: Any, y: Any): Any = {
+  private def wmax(x: Any, y: Any): Any = {
     (ov(x), ov(y)) match {
       case (a: String, b:String) => if (geq(a, b)) a else b
       case (a: Double, b:Double) => math.max(a, b)
@@ -86,7 +88,7 @@ object Functions {
     }
   }
 
-  private def min(x: Any, y: Any): Any = {
+  private def wmin(x: Any, y: Any): Any = {
     (ov(x), ov(y)) match {
       case (a: String, b:String) => if (leq(a, b)) a else b
       case (a: Double, b:Double) => math.min(a, b)
@@ -94,7 +96,7 @@ object Functions {
     }
   }
 
-  private def sum(x: Any, y: Any): Any = {
+  private def plus(x: Any, y: Any): Any = {
     (ov(x), ov(y)) match {
       case (a: Double, b:Double) => a + b
       case (a: Long, b:Long) => a + b
@@ -104,13 +106,11 @@ object Functions {
   def eval(condition: Predicate, row: Row): Boolean = {
 
     condition match {
-      case p: Equals => invoke(p.firstOperand(), row).equals(invoke(p.secondOperand(), row))
+      case p: Equals =>
+        invoke(p.firstOperand(), row).equals(invoke(p.secondOperand(), row))
 
       case p: GreaterThan =>
-        val _1 = invoke(p.firstOperand(), row)
-        val _2 = invoke(p.secondOperand(), row)
-
-        (ov(_1), ov(_2)) match {
+        (ov(invoke(p.firstOperand(), row)), ov(invoke(p.secondOperand(), row))) match {
           case (a: String, b:String) => gt(a, b)
           case (a: Double, b:Double) => gt(a, b)
           case (a: Long, b:Long) => gt(a, b)
@@ -118,10 +118,7 @@ object Functions {
         }
 
       case p: GreaterThanOrEqualTo =>
-        val _1 = invoke(p.firstOperand(), row)
-        val _2 = invoke(p.secondOperand(), row)
-
-        (ov(_1), ov(_2)) match {
+        (ov(invoke(p.firstOperand(), row)), ov(invoke(p.secondOperand(), row))) match {
           case (a: String, b:String) => geq(a, b)
           case (a: Double, b:Double) => geq(a, b)
           case (a: Long, b:Long) => geq(a, b)
@@ -129,10 +126,7 @@ object Functions {
         }
 
       case p: LessThan =>
-        val _1 = invoke(p.firstOperand(), row)
-        val _2 = invoke(p.secondOperand(), row)
-
-        (ov(_1), ov(_2)) match {
+        (ov(invoke(p.firstOperand(), row)), ov(invoke(p.secondOperand(), row))) match {
           case (a: String, b:String) => lt(a, b)
           case (a: Double, b:Double) => lt(a, b)
           case (a: Long, b:Long) => lt(a, b)
@@ -140,89 +134,83 @@ object Functions {
         }
 
       case p: LessThanOrEqualTo =>
-        val _1 = invoke(p.firstOperand(), row)
-        val _2 = invoke(p.secondOperand(), row)
-
-        (ov(_1), ov(_2)) match {
+        (ov(invoke(p.firstOperand(), row)), ov(invoke(p.secondOperand(), row))) match {
           case (a: String, b:String) => leq(a, b)
           case (a: Double, b:Double) => leq(a, b)
           case (a: Long, b:Long) => leq(a, b)
           case _ => false
         }
 
-      case p: In[_] => p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
+      case p: In[_] =>
+        p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
     }
   }
+
+  def is[T : Manifest](x: Any) = manifest.runtimeClass.isInstance(x)
+  def as[T : Manifest](x: Any) : Option[T] = if (manifest.runtimeClass.isInstance(x)) Some(x.asInstanceOf[T]) else None
 
   def filter(condition: Predicate) = {
     condition match {
-      case c: Conjunction => udf((rs: Seq[Row]) => {
-        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r)))
-      }, schema)
+      case c: Conjunction => udf((rs: Seq[Row]) =>
+        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r))), schema)
 
-      case c: Disjunction => udf((rs: Seq[Row]) => {
-        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r)))
-      }, schema)
+      case c: Disjunction => udf((rs: Seq[Row]) =>
+        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r))), schema)
 
-      case c: Negation => udf((rs: Seq[Row]) => {
-        val p = c.getPredicate
-        rs.filter(r => !eval(p, r))
-      }, schema)
+      case c: Negation => udf((rs: Seq[Row]) =>
+        rs.filter(r => !eval(c.getPredicate, r)), schema)
 
-      case c: Predicate => udf((rs: Seq[Row]) => {
-        rs.filter(r => eval(c, r))
-      }, schema)
+      case c: Predicate => udf((rs: Seq[Row]) =>
+        rs.filter(r => eval(c, r)), schema)
     }
   }
 
-  private def getAlias(ds: Dataset[_]) = ds.queryExecution.analyzed match {
-    case SubqueryAlias(alias, _) => Some(alias)
-    case _ => None
-  }
 
-  private def find(ds: Seq[DataFrame], alias: String): Option[DataFrame] = {
-    ds.find(d => {
-      getAlias(d) match {
-        case Some(a) => a.equals(alias)
-        case _ => false
-      }
-    })
-  }
+  val column: (extraction.Function, Seq[RDS]) => Column = {
 
-  val column: (extraction.Function, Seq[RelationDataset]) => Column = {
+    case (f: Time, s: Seq[RDS]) => UDF.parse(column(f.getText, s))
 
-    case (f: Time, s: Seq[RelationDataset]) => UDF.parse(column(f.getText, s))
+    case (f: TimeFormat, s: Seq[RDS]) => UDF.format(column(f.getTime, s), lit(f.getPattern), lit(f.getTimezone))
 
-    case (f: TimeFormat, s: Seq[RelationDataset]) => UDF.format(column(f.getTime, s), lit(f.getPattern), lit(f.getTimezone))
+    case (f: DiffTime, s: Seq[RDS]) => UDF.diffTime(column(f.firsTime, s), column(f.secondTime, s), lit(f.getUnit.name().toLowerCase()))
 
-    case (f: DiffTime, s: Seq[RelationDataset]) => UDF.diffTime(column(f.firsTime, s), column(f.secondTime, s), lit(f.getUnit.name().toLowerCase()))
+    case (f: Now, s: Seq[RDS]) => UDF.now()
 
-    case (f: Now, s: Seq[RelationDataset]) => UDF.now()
+    case (f: Cardinality, s: Seq[RDS]) => size(column(f.getArray, s))
 
-    case (f: Cardinality, s: Seq[RelationDataset]) => size(column(f.getArray, s))
+    case (f: ElementAt, s: Seq[RDS]) => column(f.getArray, s).getItem(f.getIndex)
 
-    case (f: ElementAt, s: Seq[RelationDataset]) => column(f.getArray, s).getItem(f.getIndex)
+    case (f: Contains[_], s: Seq[RDS]) => array_contains(column(f.getArray, s), f.getValue)
 
-    case (f: Contains[_], s: Seq[RelationDataset]) => array_contains(column(f.getArray, s), f.getValue)
+    case (f: MaxOf, s: Seq[RDS]) => sort_array(column(f.getArray, s), asc = false).getItem(0)
 
-    case (f: MaxOf, s: Seq[RelationDataset]) => sort_array(column(f.getArray, s), asc = false).getItem(0)
+    case (f: MinOf, s: Seq[RDS]) => sort_array(column(f.getArray, s), asc = true).getItem(0)
 
-    case (f: MinOf, s: Seq[RelationDataset]) => sort_array(column(f.getArray, s), asc = true).getItem(0)
+    case (f: Explode, s: Seq[RDS]) => explode(column(f.getArray, s))
 
-    case (f: Explode, s: Seq[RelationDataset]) => explode(column(f.getArray, s))
+    case (f: ArrayOf, s: Seq[RDS]) => array(f.getElements.asScala.map(element => lit(column(element, s))): _*)
 
-    case (f: ArrayOf, s: Seq[RelationDataset]) => array(f.getElements.asScala.map(element => lit(column(element, s))): _*)
+    case (f: Filter, s: Seq[RDS]) => filter(f.getPredicate)(column(f.getArray, s))
 
-    case (f: Filter, s: Seq[RelationDataset]) => filter(f.getPredicate)(column(f.getArray, s))
+    case (f: Count, s: Seq[RDS]) => count(column(f.getFunction, s))
 
-    case (f: Constant[_], s: Seq[RelationDataset]) => lit(f.getValue)
+    case (f: Sum, s: Seq[RDS]) => sum(column(f.getFunction, s))
 
-    case (f: Value, s: Seq[RelationDataset]) => {
+    case (f: Max, s: Seq[RDS]) => max(column(f.getFunction, s))
+
+    case (f: Min, s: Seq[RDS]) => min(column(f.getFunction, s))
+
+    case (f: CollectList, s: Seq[RDS]) => collect_list(column(f.getFunction, s))
+
+    case (f: CollectSet, s: Seq[RDS]) => collect_set(column(f.getFunction, s))
+
+    case (f: Constant[_], s: Seq[RDS]) => lit(f.getValue)
+
+    case (f: Value, s: Seq[RDS]) =>
       s.find(ds => ds.name.equals(f.getDataset)) match {
         case Some(ds) => ds.df.col(f.getAttribute)
         case _ => col(f.getAttribute)
       }
-    }
   }
 
 
@@ -231,7 +219,10 @@ object Functions {
 
     case (f: TimeFormat, r: Row) => format(invoke(f.getTime, r).asInstanceOf[Timestamp], f.getPattern, f.getTimezone)
 
-    case (f: DiffTime, r: Row) => diffTime(invoke(f.firsTime, r).asInstanceOf[Timestamp], invoke(f.secondTime, r).asInstanceOf[Timestamp], f.getUnit.name().toLowerCase())
+    case (f: DiffTime, r: Row) =>
+      diffTime(
+        invoke(f.firsTime, r).asInstanceOf[Timestamp],
+        invoke(f.secondTime, r).asInstanceOf[Timestamp], f.getUnit.name().toLowerCase())
 
     case (f: Now, r: Row) => now()
 
@@ -241,11 +232,11 @@ object Functions {
 
     case (f: Contains[_], r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].contains(f.getValue)
 
-    case (f: SumOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(sum)
+    case (f: SumOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(plus)
 
-    case (f: MaxOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(max)
+    case (f: MaxOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(wmax)
 
-    case (f: MinOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(min)
+    case (f: MinOf, r: Row) => invoke(f.getArray, r).asInstanceOf[Seq[_]].reduceLeft(wmin)
 
     case (f: ArrayOf, r: Row) => f.getElements.asScala.map(element => invoke(element, r))
 
