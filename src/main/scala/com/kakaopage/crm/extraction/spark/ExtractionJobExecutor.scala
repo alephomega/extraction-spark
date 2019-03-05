@@ -16,7 +16,7 @@ class ExtractionJobExecutor(val description: String) {
   def datasetOf(name: String) = {
     sets.get(name) match {
       case Some(ds) => ds
-      case _ => throw new ExtractionException("There is no set (%s)".format(name))
+      case _ => throw new ExtractionException("There is no set with name '%s'".format(name))
     }
   }
 
