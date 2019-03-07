@@ -10,10 +10,10 @@ trait JoinExecutor[T <: Join] extends BinaryRelationalAlgebraOperatorExecutor[T]
     if (cols.size == 0) j else deleteCol(j.drop(r(cols.head)), r, cols.tail)
   }
 
-  override def execute(ds1: RelationDataset, ds2: RelationDataset, join: T, as: String): RelationDataset = {
+  override def execute(ds1: Bag, ds2: Bag, join: T, as: String): Bag = {
     val df = ds1.df.join(ds2.df, Predicates.eval(join.getCondition, Seq(ds1, ds2)), joinType = joinType)
 
     val cols = df.columns.groupBy(identity).mapValues(_.size).filter(_._2 > 1).keySet.toSeq
-    RelationDataset(deleteCol(df, ds2.df, cols), as)
+    Bag(deleteCol(df, ds2.df, cols), as)
   }
 }

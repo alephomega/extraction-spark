@@ -5,7 +5,7 @@ import com.kakaopage.crm.extraction.Sink
 import scala.collection.JavaConverters._
 
 object SinkExecutor {
-  def execute(ds: RelationDataset, sink: Sink) = {
+  def execute(ds: Bag, sink: Sink) = {
     val p = sink.getPartitioning
     ds.df.repartition(
       p.getNumPartitions,

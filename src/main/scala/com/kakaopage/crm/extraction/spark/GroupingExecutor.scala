@@ -6,7 +6,7 @@ import org.apache.spark.sql.Column
 import scala.collection.JavaConverters._
 
 object GroupingExecutor extends UnaryRelationalAlgebraOperatorExecutor[Grouping] {
-  override def execute(ds: RelationDataset, grouping: Grouping, as: String): RelationDataset = {
+  override def execute(ds: Bag, grouping: Grouping, as: String): Bag = {
 
     val r = ds.df.groupBy(grouping.getGroupBy.asScala.map(g =>
       Functions.column(g.getBy, Seq(ds)).as(g.getAlias)): _*)
@@ -14,6 +14,6 @@ object GroupingExecutor extends UnaryRelationalAlgebraOperatorExecutor[Grouping]
     val a: Seq[Column] = grouping.getAggregations.asScala.map(a =>
       Functions.column(a.getFunction, Seq(ds)).as(a.getAlias))
 
-    RelationDataset(r.agg(a.head, a.tail: _*), as)
+    Bag(r.agg(a.head, a.tail: _*), as)
   }
 }

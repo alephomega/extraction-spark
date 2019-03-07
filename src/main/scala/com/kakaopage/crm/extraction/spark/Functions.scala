@@ -9,7 +9,6 @@ import com.kakaopage.crm.extraction
 import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
-import com.kakaopage.crm.extraction.spark.{RelationDataset => RD}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, Row}
@@ -128,82 +127,82 @@ object Functions {
     }
   }
 
-  def time(f: Time, rds: Seq[RD]): Column = {
+  def time(f: Time, rds: Seq[Bag]): Column = {
     UDF.parse(column(f.getText, rds))
   }
   
-  def format(f: TimeFormat, rds: Seq[RD]): Column = {
+  def format(f: TimeFormat, rds: Seq[Bag]): Column = {
     UDF.format(column(f.getTime, rds), lit(f.getPattern), lit(f.getTimezone))
   }
   
-  def diff(f: DiffTime, rds: Seq[RD]): Column = {
+  def diff(f: DiffTime, rds: Seq[Bag]): Column = {
     UDF.diffTime(column(f.firsTime, rds), column(f.secondTime, rds), lit(f.getUnit.name().toLowerCase()))
   }
 
-  def now(f: Now, rds: Seq[RD]): Column = {
+  def now(f: Now, rds: Seq[Bag]): Column = {
     UDF.now()
   }
   
-  def cardinality(f: Cardinality, rds: Seq[RD]): Column = {
+  def cardinality(f: Cardinality, rds: Seq[Bag]): Column = {
     size(column(f.getArray, rds))
   }
 
-  def elementAt(f: ElementAt, rds: Seq[RD]): Column = {
+  def elementAt(f: ElementAt, rds: Seq[Bag]): Column = {
     column(f.getArray, rds).getItem(f.getIndex)
   }
 
-  def contains(f: Contains[_], rds: Seq[RD]): Column = {
+  def contains(f: Contains[_], rds: Seq[Bag]): Column = {
     array_contains(column(f.getArray, rds), f.getValue)
   }
 
-  def maxOf(f: MaxOf, rds: Seq[RD]): Column = {
+  def maxOf(f: MaxOf, rds: Seq[Bag]): Column = {
     sort_array(column(f.getArray, rds), asc = false).getItem(0)
   }
 
-  def minOf(f: MinOf, rds: Seq[RD]): Column = {
+  def minOf(f: MinOf, rds: Seq[Bag]): Column = {
     sort_array(column(f.getArray, rds), asc = true).getItem(0)
   }
 
-  def explodeCol(f: Explode, rds: Seq[RD]): Column = {
+  def explodeCol(f: Explode, rds: Seq[Bag]): Column = {
     explode(column(f.getArray, rds))
   }
 
-  def arrayOf(f: ArrayOf, rds: Seq[RD]): Column = {
+  def arrayOf(f: ArrayOf, rds: Seq[Bag]): Column = {
     array(f.getElements.asScala.map(element => lit(column(element, rds))): _*)
   }
 
-  def filter(f: Filter, rds: Seq[RD]): Column = {
+  def filter(f: Filter, rds: Seq[Bag]): Column = {
     filter(f.getPredicate)(column(f.getArray, rds))
   }
 
-  def cnt(f: Count, rds: Seq[RD]): Column = {
+  def cnt(f: Count, rds: Seq[Bag]): Column = {
     count(column(f.getFunction, rds))
   }
 
-  def colsum(f: Sum, rds: Seq[RD]): Column = {
+  def colsum(f: Sum, rds: Seq[Bag]): Column = {
     sum(column(f.getFunction, rds))
   }
 
-  def colmax(f: Max, rds: Seq[RD]): Column = {
+  def colmax(f: Max, rds: Seq[Bag]): Column = {
     max(column(f.getFunction, rds))
   }
 
-  def colmin(f: Min, rds: Seq[RD]): Column = {
+  def colmin(f: Min, rds: Seq[Bag]): Column = {
     min(column(f.getFunction, rds))
   }
 
-  def collect(f: Collect, rds: Seq[RD]): Column = {
+  def collect(f: Collect, rds: Seq[Bag]): Column = {
     if (f.isDuplicated)
       collect_list(column(f.getFunction, rds))
     else
       collect_set(column(f.getFunction, rds))
   }
 
-  def constant(f: Constant[_], rds: Seq[RD]): Column = {
+  def constant(f: Constant[_], rds: Seq[Bag]): Column = {
     lit(f.getValue)
   }
 
-  def value(f: Value, rds: Seq[RD]): Column = {
+  def value(f: Value, rds: Seq[Bag]): Column = {
     rds.find(rd => rd.name.equals(f.getDataset)) match {
       case Some(ds) => ds.df.col(f.getAttribute)
       case _ => col(f.getAttribute)
@@ -265,7 +264,7 @@ object Functions {
   }
 
 
-  val column: (extraction.Function, Seq[RD]) => Column = (function: extraction.Function, rds: Seq[RD]) => {
+  val column: (extraction.Function, Seq[Bag]) => Column = (function: extraction.Function, rds: Seq[Bag]) => {
     function match {
       case f: Time => time(f, rds)
       case f: TimeFormat => format(f, rds)

@@ -76,34 +76,34 @@ object Examples {
 
     var df = spark.read.json("/home/johan/Documents/CRM/samples/test/test2.json")
     df.alias("df")
-    val ds = Seq(RelationDataset(df, "df"))
-    df = df.withColumn("reading", Functions.column(new Value("df", "READING"), Seq(RelationDataset(df, "df")))).drop(col("READING")).drop("PURCHASE").drop("LOGIN").drop("interval")
-    df = df.withColumn("const", Functions.column(new Constant[String]("constant"), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("frequency", Functions.column(new Value("df", "reading.frequency"), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("at", Functions.column(new Value("df", "reading.lastTime"), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("hour", Functions.column(new Value("df", "reading.distribution.hour"), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("day", Functions.column(new Value("df", "reading.distribution.day"), Seq(RelationDataset(df, "df"))))
+    val ds = Seq(Bag(df, "df"))
+    df = df.withColumn("reading", Functions.column(new Value("df", "READING"), Seq(Bag(df, "df")))).drop(col("READING")).drop("PURCHASE").drop("LOGIN").drop("interval")
+    df = df.withColumn("const", Functions.column(new Constant[String]("constant"), Seq(Bag(df, "df"))))
+    df = df.withColumn("frequency", Functions.column(new Value("df", "reading.frequency"), Seq(Bag(df, "df"))))
+    df = df.withColumn("at", Functions.column(new Value("df", "reading.lastTime"), Seq(Bag(df, "df"))))
+    df = df.withColumn("hour", Functions.column(new Value("df", "reading.distribution.hour"), Seq(Bag(df, "df"))))
+    df = df.withColumn("day", Functions.column(new Value("df", "reading.distribution.day"), Seq(Bag(df, "df"))))
 
-    df = df.withColumn("max", Functions.column(new MaxOf(new Value("df", "hour")), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("min", Functions.column(new MinOf(new Value("df", "day")), Seq(RelationDataset(df, "df"))))
+    df = df.withColumn("max", Functions.column(new MaxOf(new Value("df", "hour")), Seq(Bag(df, "df"))))
+    df = df.withColumn("min", Functions.column(new MinOf(new Value("df", "day")), Seq(Bag(df, "df"))))
     df = df.withColumn("dt1", Functions.column(new TimeFormat(
-      new Time(new Value("df", "at")), "yyyy-MM-dd'T'HH:mm:ssXXX", "Asia/Jakarta"), Seq(RelationDataset(df, "df"))))
+      new Time(new Value("df", "at")), "yyyy-MM-dd'T'HH:mm:ssXXX", "Asia/Jakarta"), Seq(Bag(df, "df"))))
 
     df = df.withColumn("dt2", Functions.column(new TimeFormat(
-      new Time(new Value("df", "at")), "yyyy-MM-dd'T'HH:mm:ssXXX", "Asia/Seoul"), Seq(RelationDataset(df, "df"))))
+      new Time(new Value("df", "at")), "yyyy-MM-dd'T'HH:mm:ssXXX", "Asia/Seoul"), Seq(Bag(df, "df"))))
 
-    df = df.withColumn("now", Functions.column(new Now(), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("diff", Functions.column(new DiffTime(new Time(new Value("df", "at")), new Now(), TimeUnit.DAYS), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("contains", Functions.column(new Contains[Int](new Value("df", "day"), 2), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("elementAt", Functions.column(new ElementAt(new Value("df", "hour"), 0), Seq(RelationDataset(df, "df"))))
-    df = df.withColumn("cardinality", Functions.column(new Cardinality(new Value("df", "hour")), Seq(RelationDataset(df, "df"))))
+    df = df.withColumn("now", Functions.column(new Now(), Seq(Bag(df, "df"))))
+    df = df.withColumn("diff", Functions.column(new DiffTime(new Time(new Value("df", "at")), new Now(), TimeUnit.DAYS), Seq(Bag(df, "df"))))
+    df = df.withColumn("contains", Functions.column(new Contains[Int](new Value("df", "day"), 2), Seq(Bag(df, "df"))))
+    df = df.withColumn("elementAt", Functions.column(new ElementAt(new Value("df", "hour"), 0), Seq(Bag(df, "df"))))
+    df = df.withColumn("cardinality", Functions.column(new Cardinality(new Value("df", "hour")), Seq(Bag(df, "df"))))
 
 
     val l = new util.ArrayList[extraction.Function]()
     l.add(new Constant[Int](3))
     l.add(new Constant[String]("2"))
     l.add(new Constant[Double](1.0))
-    df = df.withColumn("array", Functions.column(new ArrayOf(l), Seq(RelationDataset(df, "df"))))
+    df = df.withColumn("array", Functions.column(new ArrayOf(l), Seq(Bag(df, "df"))))
 
     val df2 = df
 
@@ -116,13 +116,13 @@ object Examples {
     attributes.add(new Alias(new Time(new Value("df", "at")), "at"))
 
     var projection = new Projection(attributes, new Relation("s1", null))
-    df = ProjectionExecutor.execute(RelationDataset(df, "df"), projection, "df").df
+    df = ProjectionExecutor.execute(Bag(df, "df"), projection, "df").df
     df.printSchema()
 
     var changes = new util.ArrayList[Pair[String, String]]()
     changes.add(new Pair[String, String]("arr", "array"))
     var renaming = new Renaming(changes.asInstanceOf[util.List[Pair[String, String]]], new Relation("s2", null))
-    df = RenamingExecutor.execute(RelationDataset(df, "df"), renaming, "df").df
+    df = RenamingExecutor.execute(Bag(df, "df"), renaming, "df").df
 
 
     df.show(5, false)
@@ -136,7 +136,7 @@ object Examples {
     var condition = new Conjunction(predicates)
     var join = new Join(condition, new Relation("s1", null), new Relation("s2", null))
 
-    df = ThetaJoinExecutor.execute(RelationDataset(df, "s1"), RelationDataset(df2, "s2"), join, "df").df
+    df = ThetaJoinExecutor.execute(Bag(df, "s1"), Bag(df2, "s2"), join, "df").df
 
 
 //    df.printSchema()
@@ -161,7 +161,7 @@ object Examples {
     orderings.add(new ColumnOrdering("freq", OrderBy.DESC))
 
     val sorting = new Sorting(orderings.asInstanceOf[util.List[ColumnOrdering]], new Relation("df", null))
-    df = SortingExecutor.execute(RelationDataset(df, "df"), sorting, "s3").df
+    df = SortingExecutor.execute(Bag(df, "df"), sorting, "s3").df
 
     val by = new util.ArrayList[Alias]()
     by.add(new Alias(new Value("df", "frequency"), "f"))
@@ -172,7 +172,7 @@ object Examples {
     agg.add(new Alias(new Sum(new Value("df", "win")), "s"))
 
     val grouping = new Grouping(by, agg, new Relation("df", null))
-    df = GroupingExecutor.execute(RelationDataset(df, "df"), grouping, "s4").df
+    df = GroupingExecutor.execute(Bag(df, "df"), grouping, "s4").df
 
 
     df.show(10, false)

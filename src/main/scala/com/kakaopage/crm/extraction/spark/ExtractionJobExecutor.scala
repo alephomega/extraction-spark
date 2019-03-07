@@ -10,7 +10,7 @@ import scala.collection._
 
 
 class ExtractionJobExecutor(val description: String) {
-  val sets = mutable.Map[String, RelationDataset]()
+  val sets = mutable.Map[String, Bag]()
   val steps: util.List[Step] = Serializer.serialize(Extraction.of(description))
 
   def datasetOf(name: String) = {

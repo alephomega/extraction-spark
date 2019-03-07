@@ -7,12 +7,12 @@ import scala.collection.JavaConverters._
 
 object ProjectionExecutor extends UnaryRelationalAlgebraOperatorExecutor[Projection] {
 
-  override def execute(ds: RelationDataset, projection: Projection, as: String): RelationDataset = {
+  override def execute(ds: Bag, projection: Projection, as: String): Bag = {
     val attributes = projection.getAttributes.asScala.map(a => {
       val alias = a.asInstanceOf[Alias]
       Functions.column(alias.getFunction, Seq(ds)).as(alias.getName)
     })
 
-    RelationDataset(ds.df.select(attributes: _*), as)
+    Bag(ds.df.select(attributes: _*), as)
   }
 }

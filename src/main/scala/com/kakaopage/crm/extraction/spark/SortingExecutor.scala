@@ -7,7 +7,7 @@ import scala.collection.JavaConverters._
 
 object SortingExecutor extends UnaryRelationalAlgebraOperatorExecutor[Sorting] {
 
-  override def execute(ds: RelationDataset, sorting: Sorting, as: String): RelationDataset = {
+  override def execute(ds: Bag, sorting: Sorting, as: String): Bag = {
     val cols = sorting.getOrderings.asScala.map(o => {
       o.getOrderBy.name().toLowerCase match {
         case "asc" => asc(o.getColumn)
@@ -15,6 +15,6 @@ object SortingExecutor extends UnaryRelationalAlgebraOperatorExecutor[Sorting] {
       }
     })
 
-    RelationDataset(ds.df.orderBy(cols: _*), as)
+    Bag(ds.df.orderBy(cols: _*), as)
   }
 }
