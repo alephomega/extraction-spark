@@ -33,7 +33,7 @@ class ExtractionJobExecutor(val description: String) {
         val ds = assignment.getOperation match {
 
           case selection: Selection => SelectionExecutor.execute(
-            null, selection, as)
+            selection, as)
 
           case projection: Projection => ProjectionExecutor.execute(
             datasetOf(nameOf(projection.getRelation)), projection, as)

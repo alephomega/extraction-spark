@@ -203,7 +203,7 @@ object Functions {
   }
 
   def value(f: Value, rds: Seq[Bag]): Column = {
-    rds.find(rd => rd.name.equals(f.getDataset)) match {
+    rds.find(rd => rd.name.equals(f.getDataSet)) match {
       case Some(ds) => ds.df.col(f.getAttribute)
       case _ => col(f.getAttribute)
     }
