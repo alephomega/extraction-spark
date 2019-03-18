@@ -9,9 +9,9 @@ import scala.collection.JavaConverters._
 import scala.collection._
 
 
-class ExtractionJobExecutor(val description: String) {
+class ExtractionJobExecutor(val id: String, val steps: util.List[Step]) {
   val sets = mutable.Map[String, Bag]()
-  val steps: util.List[Step] = Serializer.serialize(Extraction.of(description))
+//  val steps: util.List[Step] = Serializer.serialize(Extraction.of(description))
 
   def datasetOf(name: String) = {
     sets.get(name) match {
@@ -24,9 +24,14 @@ class ExtractionJobExecutor(val description: String) {
     rel.getName
   }
 
-  def executeStep(step: Step) = {
-    step match {
 
+  def execute(): Bag = {
+    steps.asScala.foreach(step => execute(step))
+    datasetOf(id)
+  }
+
+  def execute(step: Step) = {
+    step match {
       case assignment: Assignment => {
         val as = assignment.getVariable
 
@@ -70,17 +75,14 @@ class ExtractionJobExecutor(val description: String) {
       }
 
       case sink: Sink => {
-        SinkExecutor.execute(datasetOf(nameOf(sink.getRelation)), sink)
+        val ds = SinkExecutor.execute(datasetOf(nameOf(sink.getRelation)), sink)
+        sets.put(id, ds)
       }
     }
   }
-
-  def execute() = steps.asScala.foreach(executeStep)
 }
 
 
 object ExtractionJobExecutor {
-  def main(args: Array[String]) = {
-
-  }
+  def apply(id: String, steps: util.List[Step]): ExtractionJobExecutor = new ExtractionJobExecutor(id, steps)
 }

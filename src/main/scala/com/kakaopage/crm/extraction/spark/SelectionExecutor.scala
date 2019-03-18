@@ -4,7 +4,13 @@ import com.kakaopage.crm.extraction.ra.{Relation, Selection}
 import org.apache.spark.sql.DataFrame
 
 object SelectionExecutor extends UnaryRelationalAlgebraOperatorExecutor[Selection] {
-  def source(rel: Relation): DataFrame = ???
+
+  def source(rel: Relation): DataFrame = {
+    Metadata.source(rel.getName) match {
+      case Some(s) => s.load()
+      case _ => null
+    }
+  }
 
   override def execute(empty: Bag, selection: Selection, as: String): Bag = {
     val rel = selection.getRelation
