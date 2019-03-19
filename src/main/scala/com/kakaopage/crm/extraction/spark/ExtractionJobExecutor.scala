@@ -1,19 +1,17 @@
 package com.kakaopage.crm.extraction.spark
 
-import java.util
-
 import com.kakaopage.crm.extraction._
 import com.kakaopage.crm.extraction.ra._
+import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
 import scala.collection._
 
 
-class ExtractionJobExecutor(val id: String, val steps: util.List[Step]) {
+class ExtractionJobExecutor(val id: String, val process: Process) {
   val sets = mutable.Map[String, Bag]()
-//  val steps: util.List[Step] = Serializer.serialize(Extraction.of(description))
 
-  def datasetOf(name: String) = {
+  def dataSet(name: String) = {
     sets.get(name) match {
       case Some(ds) => ds
       case _ => throw new ExtractionException("There is no set with name '%s'".format(name))
@@ -25,13 +23,13 @@ class ExtractionJobExecutor(val id: String, val steps: util.List[Step]) {
   }
 
 
-  def execute(): Bag = {
-    steps.asScala.foreach(step => execute(step))
-    datasetOf(id)
+  def execute(): Array[DataFrame] = {
+    process.getAssignments.asScala.foreach(assignment => execute(assignment))
+    execute(process.getSink)
   }
 
-  def execute(step: Step) = {
-    step match {
+  def execute(assignment: Assignment) = {
+    assignment match {
       case assignment: Assignment => {
         val as = assignment.getVariable
 
@@ -41,48 +39,46 @@ class ExtractionJobExecutor(val id: String, val steps: util.List[Step]) {
             selection, as)
 
           case projection: Projection => ProjectionExecutor.execute(
-            datasetOf(nameOf(projection.getRelation)), projection, as)
+            dataSet(nameOf(projection.getRelation)), projection, as)
 
           case renaming: Renaming => RenamingExecutor.execute(
-            datasetOf(nameOf(renaming.getRelation)), renaming, as)
+            dataSet(nameOf(renaming.getRelation)), renaming, as)
 
           case grouping: Grouping => GroupingExecutor.execute(
-            datasetOf(nameOf(grouping.getRelation)), grouping, as)
+            dataSet(nameOf(grouping.getRelation)), grouping, as)
 
           case product: Product => ProductExecutor.execute(
-            datasetOf(nameOf(product.firstRelation)), datasetOf(nameOf(product.secondRelation)), product, as)
+            dataSet(nameOf(product.firstRelation)), dataSet(nameOf(product.secondRelation)), product, as)
 
           case join: LeftOuterJoin => LeftOuterJoinExecutor.execute(
-            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
 
           case join: RightOuterJoin => RightOuterJoinExecutor.execute(
-            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
 
           case join: FullOuterJoin => FullOuterJoinExecutor.execute(
-            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
 
           case join: Join => ThetaJoinExecutor.execute(
-            datasetOf(nameOf(join.firstRelation)), datasetOf(nameOf(join.secondRelation)), join, as)
+            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
 
           case sorting: Sorting => SortingExecutor.execute(
-            datasetOf(nameOf(sorting.getRelation)), sorting, as)
+            dataSet(nameOf(sorting.getRelation)), sorting, as)
 
           case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(
-            datasetOf(nameOf(distinction.getRelation)), distinction, as)
+            dataSet(nameOf(distinction.getRelation)), distinction, as)
         }
 
         sets.put(as, ds)
       }
-
-      case sink: Sink => {
-        val ds = SinkExecutor.execute(datasetOf(nameOf(sink.getRelation)), sink)
-        sets.put(id, ds)
-      }
     }
+  }
+
+  def execute(sink: Sink): Array[DataFrame] = {
+    SinkExecutor.execute(dataSet(nameOf(sink.getRelation)), sink)
   }
 }
 
-
 object ExtractionJobExecutor {
-  def apply(id: String, steps: util.List[Step]): ExtractionJobExecutor = new ExtractionJobExecutor(id, steps)
+  def apply(id: String, process: Process): ExtractionJobExecutor = new ExtractionJobExecutor(id, process)
 }
