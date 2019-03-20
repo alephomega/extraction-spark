@@ -13,7 +13,7 @@ import scala.collection.JavaConverters._
 class ExtractionJob(val glueContext: GlueContext) extends JobExecutor {
 
   override def run(id: String, process: Process): ExtractionResult = {
-    val dfs = ExtractionJobExecutor(id, process).execute()
+    val dfs = ExtractionJobExecutor(glueContext, id, process).execute()
     run(id, dfs, ConfigFactory.load())
   }
 

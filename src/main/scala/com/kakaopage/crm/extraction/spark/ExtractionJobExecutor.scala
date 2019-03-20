@@ -1,5 +1,6 @@
 package com.kakaopage.crm.extraction.spark
 
+import com.amazonaws.services.glue.GlueContext
 import com.kakaopage.crm.extraction._
 import com.kakaopage.crm.extraction.ra._
 import org.apache.spark.sql.DataFrame
@@ -8,7 +9,7 @@ import scala.collection.JavaConverters._
 import scala.collection._
 
 
-class ExtractionJobExecutor(val id: String, val process: Process) {
+class ExtractionJobExecutor(val glueContext: GlueContext, val id: String, val process: Process) {
   val sets = mutable.Map[String, Bag]()
 
   def dataSet(name: String) = {
@@ -36,7 +37,7 @@ class ExtractionJobExecutor(val id: String, val process: Process) {
         val ds = assignment.getOperation match {
 
           case selection: Selection => SelectionExecutor.execute(
-            selection, as)
+            glueContext, selection, as)
 
           case projection: Projection => ProjectionExecutor.execute(
             dataSet(nameOf(projection.getRelation)), projection, as)
@@ -80,5 +81,5 @@ class ExtractionJobExecutor(val id: String, val process: Process) {
 }
 
 object ExtractionJobExecutor {
-  def apply(id: String, process: Process): ExtractionJobExecutor = new ExtractionJobExecutor(id, process)
+  def apply(glueContext: GlueContext, id: String, process: Process): ExtractionJobExecutor = new ExtractionJobExecutor(glueContext, id, process)
 }

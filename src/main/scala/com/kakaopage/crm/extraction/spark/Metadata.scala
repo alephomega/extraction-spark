@@ -1,14 +1,17 @@
 package com.kakaopage.crm.extraction.spark
 
-import scalikejdbc.{NamedDB, _}
+import com.kakaopage.crm.extraction.ra.Relation
 
 object Metadata {
 
-  def source(id: String): Option[Source] = NamedDB('cohorts) readOnly { implicit session =>
-    sql"""
-        select id, database, table, predicate
-          from cohorts
-         where id = $id
-      """.map(rs => Source(rs)).single.apply()
+  def source(rel: Relation): Option[Source] = {
+    val predicate = rel.getPushDown
+    val pushDownExpression = if (predicate == null) "" else predicate.toPushDownExpression
+    val id: String = ???
+    val database: String = ???
+    val table: String = ???
+    val count: Long = ???
+
+    Some(Source(id, database, table, pushDownExpression, count))
   }
 }
