@@ -264,27 +264,27 @@ object Functions {
   }
 
 
-  val column: (extraction.Function, Seq[Bag]) => Column = (function: extraction.Function, rds: Seq[Bag]) => {
+  val column: (extraction.Function, Seq[Bag]) => Column = (function: extraction.Function, ds: Seq[Bag]) => {
     function match {
-      case f: Time => time(f, rds)
-      case f: TimeFormat => format(f, rds)
-      case f: DiffTime => diff(f, rds)
-      case f: Now => now(f, rds)
-      case f: Cardinality => cardinality(f, rds)
-      case f: ElementAt=> elementAt(f, rds)
-      case f: Contains[_] => contains(f, rds)
-      case f: MaxOf => maxOf(f, rds)
-      case f: MinOf => minOf(f, rds)
-      case f: Explode => explodeCol(f, rds)
-      case f: ArrayOf => arrayOf(f, rds)
-      case f: Filter => filter(f, rds)
-      case f: Count => cnt(f, rds)
-      case f: Sum => colsum(f, rds)
-      case f: Max => colmax(f, rds)
-      case f: Min => colmin(f, rds)
-      case f: Collect => collect(f, rds)
-      case f: Constant[_] => constant(f, rds)
-      case f: Value => value(f, rds)
+      case f: Time => time(f, ds)
+      case f: TimeFormat => format(f, ds)
+      case f: DiffTime => diff(f, ds)
+      case f: Now => now(f, ds)
+      case f: Cardinality => cardinality(f, ds)
+      case f: ElementAt=> elementAt(f, ds)
+      case f: Contains[_] => contains(f, ds)
+      case f: MaxOf => maxOf(f, ds)
+      case f: MinOf => minOf(f, ds)
+      case f: Explode => explodeCol(f, ds)
+      case f: ArrayOf => arrayOf(f, ds)
+      case f: Filter => filter(f, ds)
+      case f: Count => cnt(f, ds)
+      case f: Sum => colsum(f, ds)
+      case f: Max => colmax(f, ds)
+      case f: Min => colmin(f, ds)
+      case f: Collect => collect(f, ds)
+      case f: Constant[_] => constant(f, ds)
+      case f: Value => value(f, ds)
     }
   }
 

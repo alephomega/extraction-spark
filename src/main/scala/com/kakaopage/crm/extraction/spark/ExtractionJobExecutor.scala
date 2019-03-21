@@ -9,7 +9,7 @@ import scala.collection.JavaConverters._
 import scala.collection._
 
 
-class ExtractionJobExecutor(val glueContext: GlueContext, val id: String, val process: Process) {
+class ExtractionJobExecutor(val glueContext: GlueContext, val process: Process) {
   val sets = mutable.Map[String, Bag]()
 
   def dataSet(name: String) = {
@@ -81,5 +81,5 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val id: String, val pr
 }
 
 object ExtractionJobExecutor {
-  def apply(glueContext: GlueContext, id: String, process: Process): ExtractionJobExecutor = new ExtractionJobExecutor(glueContext, id, process)
+  def apply(glueContext: GlueContext, process: Process): ExtractionJobExecutor = new ExtractionJobExecutor(glueContext, process)
 }
