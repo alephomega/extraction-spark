@@ -42,6 +42,10 @@ object Predicates {
       Functions.column(p.firstOperand, s).leq(Functions.column(p.secondOperand, s))
     }
 
+    case (p: Between, s: Seq[Bag]) => {
+      Functions.column(p.firstOperand, s).between(Functions.column(p.secondOperand, s), Functions.column(p.thirdOperand, s))
+    }
+
     case (p: IsIn[_], s: Seq[Bag]) => {
       Functions.column(p.getValue, s).isin(p.getElements.asScala)
     }
