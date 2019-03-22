@@ -3,12 +3,13 @@ package com.kakaopage.crm.extraction.spark
 import java.sql.Timestamp
 import java.time._
 import java.time.format.DateTimeFormatter
-import java.util.Date
+import java.util.{Calendar, Date, TimeZone}
 
 import com.kakaopage.crm.extraction
 import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
+import org.apache.commons.lang3.time.DateUtils
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, Row}
@@ -37,9 +38,36 @@ object Functions {
       case "minutes" => duration.toMinutes
       case "seconds" => duration.getSeconds
       case "milliseconds" => duration.toMillis
-      case "microseconds" => 1000 * duration.toMillis
-      case "nanoseconds" => duration.toNanos
     }
+  }
+
+  def startOfDay: (Timestamp, String) => Timestamp = (time: Timestamp, timezone: String) => {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone(timezone))
+    cal.setTimeInMillis(time.getTime)
+
+    new Timestamp(DateUtils.truncate(cal, Calendar.DATE).getTimeInMillis)
+  }
+
+  def endOfDay: (Timestamp, String) => Timestamp = (time: Timestamp, timezone: String) => {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone(timezone))
+    cal.setTimeInMillis(time.getTime)
+
+    new Timestamp(DateUtils.addMilliseconds(DateUtils.ceiling(cal, Calendar.DATE), -1).getTime)
+  }
+
+  def add: (Timestamp, String, Int, String) => Timestamp = (time: Timestamp, unit: String, amount: Int, timezone: String) => {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone(timezone))
+    cal.setTimeInMillis(time.getTime)
+
+    unit match {
+      case "days" => cal.add(Calendar.DATE, amount)
+      case "hours" => cal.add(Calendar.HOUR_OF_DAY, amount)
+      case "minutes" => cal.add(Calendar.MINUTE, amount)
+      case "seconds" => cal.add(Calendar.SECOND, amount)
+      case "milliseconds" => cal.add(Calendar.MILLISECOND, amount)
+    }
+
+    new Timestamp(cal.getTimeInMillis)
   }
 
   def now: () => Timestamp = () => new Timestamp(System.currentTimeMillis)
@@ -53,6 +81,12 @@ object Functions {
     def now = udf(Functions.now)
 
     def diffTime = udf(Functions.diffTime)
+
+    def startOfDay = udf(Functions.startOfDay)
+
+    def endOfDay = udf(Functions.endOfDay)
+
+    def add = udf(Functions.add)
   }
 
 
@@ -136,7 +170,19 @@ object Functions {
   }
   
   def diff(f: DiffTime, rds: Seq[Bag]): Column = {
-    UDF.diffTime(column(f.firsTime, rds), column(f.secondTime, rds), lit(f.getUnit.name().toLowerCase()))
+    UDF.diffTime(column(f.firstTime, rds), column(f.secondTime, rds), lit(f.getUnit))
+  }
+
+  def startOfDay(f: StartOfDay, rds: Seq[Bag]): Column = {
+    UDF.startOfDay(column(f.getTime, rds), lit(f.getTimezone))
+  }
+
+  def endOfDay(f: EndOfDay, rds: Seq[Bag]): Column = {
+    UDF.endOfDay(column(f.getTime, rds), lit(f.getTimezone))
+  }
+
+  def add(f: TimeAdd, rds: Seq[Bag]): Column = {
+    UDF.add(column(f.getTime, rds), lit(f.getUnit), lit(f.getAmount), lit(f.getTimezone))
   }
 
   def now(f: Now, rds: Seq[Bag]): Column = {
@@ -219,11 +265,23 @@ object Functions {
 
   def diff(f: DiffTime, r: Row): Any = {
     diffTime(
-      invoke(f.firsTime, r).asInstanceOf[Timestamp],
-      invoke(f.secondTime, r).asInstanceOf[Timestamp], f.getUnit.name().toLowerCase())
+      invoke(f.firstTime, r).asInstanceOf[Timestamp],
+      invoke(f.secondTime, r).asInstanceOf[Timestamp], f.getUnit)
   }
 
-  def  now(f: Now, r: Row): Any = {
+  def startOfDay(f: StartOfDay, r: Row): Any = {
+    startOfDay(invoke(f.getTime, r).asInstanceOf[Timestamp], f.getTimezone)
+  }
+
+  def endOfDay(f: EndOfDay, r: Row): Any = {
+    endOfDay(invoke(f.getTime, r).asInstanceOf[Timestamp], f.getTimezone)
+  }
+
+  def add(f: TimeAdd, r: Row): Any = {
+    add(invoke(f.getTime, r).asInstanceOf[Timestamp], f.getUnit, f.getAmount, f.getTimezone)
+  }
+
+  def now(f: Now, r: Row): Any = {
     now()
   }
 
@@ -269,6 +327,9 @@ object Functions {
       case f: Time => time(f, ds)
       case f: TimeFormat => format(f, ds)
       case f: DiffTime => diff(f, ds)
+      case f: StartOfDay => startOfDay(f, ds)
+      case f: EndOfDay => endOfDay(f, ds)
+      case f: TimeAdd => add(f, ds)
       case f: Now => now(f, ds)
       case f: Cardinality => cardinality(f, ds)
       case f: ElementAt=> elementAt(f, ds)
@@ -293,6 +354,9 @@ object Functions {
       case f: Time => time(f, row)
       case f: TimeFormat => format(f, row)
       case f: DiffTime => diff(f, row)
+      case f: StartOfDay => startOfDay(f, row)
+      case f: EndOfDay => endOfDay(f, row)
+      case f: TimeAdd => add(f, row)
       case f: Now => now(f, row)
       case f: Cardinality => cardinality(f, row)
       case f: ElementAt => elementAt(f, row)
