@@ -255,6 +255,14 @@ object Functions {
     }
   }
 
+  def isNull(f: Null, rds: Seq[Bag]): Column = {
+    isnull(column(f.getValue, rds))
+  }
+
+  def isNotNull(f: NotNull, rds: Seq[Bag]): Column = {
+    not(isnull(column(f.getValue, rds)))
+  }
+
   def time(f: Time, r: Row): Any = {
     parse(invoke(f.getText, r).asInstanceOf[String])
   }
@@ -313,14 +321,21 @@ object Functions {
     f.getElements.asScala.map(element => invoke(element, r))
   }
 
-  def value(f: Value, r: Row): Any = {
-    r.get(r.fieldIndex(f.getAttribute))
-  }
-
   def constant(f: Constant[_], r: Row): Any = {
     f.getValue
   }
 
+  def value(f: Value, r: Row): Any = {
+    r.get(r.fieldIndex(f.getAttribute))
+  }
+
+  def isNull(f: Null, r: Row): Any = {
+    invoke(f.getValue, r) == null
+  }
+
+  def isNotNull(f: NotNull, r: Row): Any = {
+    invoke(f.getValue, r) != null
+  }
 
   val column: (extraction.Function, Seq[Bag]) => Column = (function: extraction.Function, ds: Seq[Bag]) => {
     function match {
@@ -346,6 +361,8 @@ object Functions {
       case f: Collect => collect(f, ds)
       case f: Constant[_] => constant(f, ds)
       case f: Value => value(f, ds)
+      case f: Null => isNull(f, ds)
+      case f: NotNull => isNotNull(f, ds)
     }
   }
 
@@ -365,8 +382,10 @@ object Functions {
       case f: MaxOf => maxOf(f, row)
       case f: MinOf => minOf(f, row)
       case f: ArrayOf => arrayOf(f, row)
-      case f: Value => value(f, row)
       case f: Constant[_] => constant(f, row)
+      case f: Value => value(f, row)
+      case f: Null => isNull(f, row)
+      case f: NotNull => isNotNull(f, row)
     }
   }
 
