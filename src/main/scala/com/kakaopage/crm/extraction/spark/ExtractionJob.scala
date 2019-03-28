@@ -3,16 +3,15 @@ package com.kakaopage.crm.extraction.spark
 import com.amazonaws.services.glue.util.{GlueArgParser, Job, JsonOptions}
 import com.amazonaws.services.glue.{DynamicFrame, GlueContext}
 import com.kakaopage.crm.extraction._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
 
 
-class ExtractionJob(val glueContext: GlueContext) extends JobExecutor {
+class ExtractionJob(val glueContext: GlueContext, val config: Config) extends JobExecutor {
   override def run(job: String, execution: String, process: Process): ExtractionResult = {
-    val config = ConfigFactory.load()
     val dfs = ExtractionJobExecutor(glueContext, process).execute()
 
     val base = config.getString("sink.basePath")
@@ -49,15 +48,15 @@ class ExtractionJob(val glueContext: GlueContext) extends JobExecutor {
 
 
 object ExtractionJob {
-  def apply(glueContext: GlueContext): ExtractionJob = new ExtractionJob(glueContext)
+  def apply(glueContext: GlueContext, config: Config): ExtractionJob = new ExtractionJob(glueContext, config)
 
-  def main(sysArgs: Array[String]) {
-    val glueContext: GlueContext = new GlueContext(new SparkContext())
-    val args = GlueArgParser.getResolvedOptions(sysArgs, Seq("JOB_NAME", "description").toArray)
-    Job.init(args("JOB_NAME"), glueContext, args.asJava)
+  def main(args: Array[String]) {
+    val glueContext = new GlueContext(new SparkContext())
+    val config = ConfigFactory.load()
+    val resolvedOptions = GlueArgParser.getResolvedOptions(args, config.getStringList("job.options").asScala.toArray)
 
-    val rs = ExtractionJob(glueContext).run(get(args, "description"))
-
+    Job.init(resolvedOptions("JOB_NAME"), glueContext, resolvedOptions.asJava)
+    ExtractionJob(glueContext, config).run(get(resolvedOptions, "description"), resolvedOptions.asJava)
     Job.commit()
   }
 

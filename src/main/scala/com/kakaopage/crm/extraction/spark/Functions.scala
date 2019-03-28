@@ -426,6 +426,6 @@ object Functions {
   }
 
   val schema = {
-    ArrayType(StructType(Seq(StructField("at", StringType), StructField("ev", StringType), StructField("meta", StructType(Seq(StructField("amount", DoubleType), StructField("episode", StringType), StructField("item", StringType), StructField("series", StringType)))))))
+    ArrayType(StructType(Seq(StructField("at", StringType), StructField("event", StringType), StructField("meta", StructType(Seq(StructField("amount", DoubleType), StructField("episode", StringType), StructField("item", StringType), StructField("series", StringType)))))))
   }
 }
