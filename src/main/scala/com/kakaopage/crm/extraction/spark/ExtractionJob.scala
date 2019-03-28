@@ -11,15 +11,14 @@ import scala.collection.JavaConverters._
 
 
 class ExtractionJob(val glueContext: GlueContext) extends JobExecutor {
-
   override def run(job: String, execution: String, process: Process): ExtractionResult = {
     val config = ConfigFactory.load()
     val dfs = ExtractionJobExecutor(glueContext, process).execute()
 
-    val basePath = config.getString("sink.basePath")
+    val base = config.getString("sink.basePath")
     val partitions = dfs.zipWithIndex.map {
       case (df: DataFrame, i: Int) => {
-        val path = f"$basePath/$job/$execution/$i"
+        val path = f"$base/$job/$execution/$i"
 
         val dynamicFrame = DynamicFrame(df, glueContext)
         val count = dynamicFrame.count
@@ -29,7 +28,7 @@ class ExtractionJob(val glueContext: GlueContext) extends JobExecutor {
       }
     }
 
-    ExtractionResult.`with`(Cohort.`with`(process.getId, partitions.toList.asJava))
+    ExtractionResult.`with`(Cohort.`with`(process.getName, process.isRepeated, partitions.toList.asJava))
   }
 
   def sink(dynamicFrame: DynamicFrame, partitions: Int, path: String) = {
