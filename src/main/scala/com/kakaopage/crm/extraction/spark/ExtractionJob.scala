@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
 
 
 class ExtractionJob(val glueContext: GlueContext, val config: Config) extends JobExecutor {
-  override def run(job: String, execution: String, process: Process): ExtractionResult = {
+  override def run(job: String, execution: String, process: Process): Cohort = {
     val dfs = ExtractionJobExecutor(glueContext, process).execute()
 
     val base = config.getString("sink.basePath")
@@ -27,7 +27,7 @@ class ExtractionJob(val glueContext: GlueContext, val config: Config) extends Jo
       }
     }
 
-    ExtractionResult.`with`(Cohort.`with`(process.getName, process.isRepeated, partitions.toList.asJava))
+    Cohort.`with`(process.getName, process.isRepeated, partitions.toList.asJava)
   }
 
   def sink(dynamicFrame: DynamicFrame, partitions: Int, path: String) = {
