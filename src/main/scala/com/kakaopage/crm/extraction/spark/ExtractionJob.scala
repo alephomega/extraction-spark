@@ -27,7 +27,7 @@ class ExtractionJob(val glueContext: GlueContext, val config: Config) extends Jo
       }
     }
 
-    Cohort.`with`(process.getName, process.isRepeated, partitions.toList.asJava)
+    Cohort.`with`(process.getName, process.getInterval, partitions.toList.asJava)
   }
 
   def sink(dynamicFrame: DynamicFrame, partitions: Int, path: String) = {
