@@ -85,7 +85,6 @@ class FunctionsTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfter
 
   test("time_add test") {
     df.select(Functions.column(new TimeAdd(new Now(), "hours", 2, "Asia/Jakarta"), Seq(Bag(df, "dataSet")))).show(5, false)
-    df.select(Functions.column(new TimeAdd(new Now(), "hours", -2, "Asia/Jakarta"), Seq(Bag(df, "dataSet")))).show(5, false)
   }
 
   test("max test") {
@@ -106,5 +105,13 @@ class FunctionsTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfter
 
   test("is_not_null test") {
     df.filter(Functions.column(new NotNull(new Value(null, "customer")), Seq(Bag(df, "dataSet")))).show(5, false)
+  }
+
+  test("max_of test") {
+    df.withColumn("array_of", Functions.column(new ArrayOf(List[Function](new Constant[Double](1), new Constant[Double](2.5), new Constant[Double](5)).asJava), Seq(Bag(df, "dataSet")))).withColumn("max_of", Functions.column(new MaxOf(new Value(null, "array_of")), Seq(Bag(df, "dataSet")))).show(5, false)
+  }
+
+  test("min_of test") {
+    df.withColumn("array_of", Functions.column(new ArrayOf(List[Function](new Constant[Double](1), new Constant[Double](2.5), new Constant[Double](5)).asJava), Seq(Bag(df, "dataSet")))).withColumn("min_of", Functions.column(new MinOf(new Value(null, "array_of")), Seq(Bag(df, "dataSet")))).show(5, false)
   }
 }
