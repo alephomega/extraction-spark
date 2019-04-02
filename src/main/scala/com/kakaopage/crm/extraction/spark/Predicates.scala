@@ -47,7 +47,7 @@ object Predicates {
     }
 
     case (p: IsIn[_], s: Seq[Bag]) => {
-      Functions.column(p.getValue, s).isin(p.getElements.asScala)
+      Functions.column(p.getValue, s).isin(p.getElements.asScala: _*)
     }
 
     case (p: Ignorable, s: Seq[Bag]) => {
