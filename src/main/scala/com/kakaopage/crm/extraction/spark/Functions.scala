@@ -5,6 +5,8 @@ import java.time._
 import java.time.format.DateTimeFormatter
 import java.util.{Calendar, Date, TimeZone}
 
+import com.amazonaws.services.glue.AWSGlueClientBuilder
+import com.amazonaws.services.glue.model.GetTableVersionsRequest
 import com.kakaopage.crm.extraction
 import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
@@ -139,36 +141,40 @@ object Functions {
 
       case p: IsIn[_] =>
         p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
+
+      case p: Ignorable =>
+        if (p.isIgnore) true
+        else eval(p.getPredicate, row)
     }
   }
 
   def is[T : Manifest](x: Any) = manifest.runtimeClass.isInstance(x)
   def as[T : Manifest](x: Any) : Option[T] = if (manifest.runtimeClass.isInstance(x)) Some(x.asInstanceOf[T]) else None
 
-  def filter(condition: Predicate) = {
+  def filter(condition: Predicate, database: String, table: String, field: String) = {
     condition match {
       case c: Conjunction => udf((rs: Seq[Row]) =>
-        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r))), schema)
+        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r))), schema(database, table, field))
 
       case c: Disjunction => udf((rs: Seq[Row]) =>
-        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r))), schema)
+        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r))), schema(database, table, field))
 
       case c: Negation => udf((rs: Seq[Row]) =>
-        rs.filter(r => !eval(c.getPredicate, r)), schema)
+        rs.filter(r => !eval(c.getPredicate, r)), schema(database, table, field))
 
       case c: Predicate => udf((rs: Seq[Row]) =>
-        rs.filter(r => eval(c, r)), schema)
+        rs.filter(r => eval(c, r)), schema(database, table, field))
     }
   }
 
   def time(f: Time, rds: Seq[Bag]): Column = {
     UDF.parse(column(f.getText, rds))
   }
-  
+
   def format(f: TimeFormat, rds: Seq[Bag]): Column = {
     UDF.format(column(f.getTime, rds), lit(f.getPattern), lit(f.getTimezone))
   }
-  
+
   def diff(f: DiffTime, rds: Seq[Bag]): Column = {
     UDF.diffTime(column(f.firstTime, rds), column(f.secondTime, rds), lit(f.getUnit))
   }
@@ -188,7 +194,7 @@ object Functions {
   def now(f: Now, rds: Seq[Bag]): Column = {
     UDF.now()
   }
-  
+
   def cardinality(f: Cardinality, rds: Seq[Bag]): Column = {
     size(column(f.getArray, rds))
   }
@@ -218,7 +224,7 @@ object Functions {
   }
 
   def filter(f: Filter, rds: Seq[Bag]): Column = {
-    filter(f.getPredicate)(column(f.getArray, rds))
+    filter(f.getPredicate, f.getDatabase, f.getTable, f.getField)(column(f.getArray, rds))
   }
 
   def cnt(f: Count, rds: Seq[Bag]): Column = {
@@ -425,7 +431,18 @@ object Functions {
     }
   }
 
-  val schema = {
-    ArrayType(StructType(Seq(StructField("at", StringType), StructField("event", StringType), StructField("meta", StructType(Seq(StructField("amount", DoubleType), StructField("episode", StringType), StructField("item", StringType), StructField("series", StringType)))))))
+  private def schema(database: String, table: String, field: String): DataType = {
+    val glue = AWSGlueClientBuilder.defaultClient()
+    val request = new GetTableVersionsRequest().withDatabaseName(database).withCatalogId(table)
+
+    val results = glue.getTableVersions(request)
+    val versions = results.getTableVersions
+    val columns = versions.get(0).getTable.getStorageDescriptor.getColumns
+
+    val column = columns.asScala.find(col => col.getName.equals(field))
+    column match {
+      case Some(v) => DataType.fromJson(v.getType)
+      case _ => throw new ExtractionException(s"Can't find schema information for the column '$database.$table.$field'")
+    }
   }
 }

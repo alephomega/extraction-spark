@@ -36,8 +36,11 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val process: Process) 
 
         val ds = assignment.getOperation match {
 
-          case selection: Selection => SelectionExecutor.execute(
-            glueContext, selection, as)
+          case selection: Selection =>
+            selection.getSource.getType match {
+              case Source.Type.Intermediate => SelectionExecutor.execute(dataSet(nameOf(selection.getRelation)), selection, as)
+              case _ => SelectionExecutor.execute(glueContext, selection, as)
+            }
 
           case projection: Projection => ProjectionExecutor.execute(
             dataSet(nameOf(projection.getRelation)), projection, as)
