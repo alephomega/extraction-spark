@@ -12,6 +12,7 @@ import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
 import org.apache.commons.lang3.time.DateUtils
+import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, Row}
@@ -261,6 +262,10 @@ object Functions {
     }
   }
 
+  def alias(f: Alias, rds: Seq[Bag]): Column = {
+    column(f.getFunction, rds).as(f.getName)
+  }
+
   def isNull(f: Null, rds: Seq[Bag]): Column = {
     isnull(column(f.getValue, rds))
   }
@@ -367,6 +372,7 @@ object Functions {
       case f: Collect => collect(f, ds)
       case f: Constant[_] => constant(f, ds)
       case f: Value => value(f, ds)
+      case f: Alias => alias(f, ds)
       case f: Null => isNull(f, ds)
       case f: NotNull => isNotNull(f, ds)
     }
@@ -433,7 +439,7 @@ object Functions {
 
   private def schema(database: String, table: String, field: String): DataType = {
     val glue = AWSGlueClientBuilder.defaultClient()
-    val request = new GetTableVersionsRequest().withDatabaseName(database).withCatalogId(table)
+    val request = new GetTableVersionsRequest().withDatabaseName(database).withTableName(table)
 
     val results = glue.getTableVersions(request)
     val versions = results.getTableVersions
@@ -441,7 +447,7 @@ object Functions {
 
     val column = columns.asScala.find(col => col.getName.equals(field))
     column match {
-      case Some(v) => DataType.fromJson(v.getType)
+      case Some(v) => CatalystSqlParser.parseDataType(v.getType)
       case _ => throw new ExtractionException(s"Can't find schema information for the column '$database.$table.$field'")
     }
   }
