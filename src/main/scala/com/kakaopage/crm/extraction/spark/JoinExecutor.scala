@@ -10,10 +10,13 @@ trait JoinExecutor[T <: Join] extends BinaryRelationalAlgebraOperatorExecutor[T]
     if (cols.isEmpty) j else deleteCol(j.drop(r(cols.head)), r, cols.tail)
   }
 
+  def duplicatesAllowed = true
+  def removeDuplicates(j: DataFrame, f: DataFrame, s: DataFrame): DataFrame = {
+    deleteCol(j, s, j.columns.groupBy(identity).mapValues(_.length).filter(_._2 > 1).keySet.toSeq)
+  }
+
   override def execute(ds1: Bag, ds2: Bag, join: T, as: String): Bag = {
     val df = ds1.df.join(ds2.df, Predicates.eval(join.getCondition, Seq(ds1, ds2)), joinType = joinType)
-
-    val cols = df.columns.groupBy(identity).mapValues(_.length).filter(_._2 > 1).keySet.toSeq
-    Bag(deleteCol(df, ds2.df, cols), as)
+    Bag(if (join.isDuplicatesAllowed) df else removeDuplicates(df, ds1.df, ds2.df), as)
   }
 }

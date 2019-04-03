@@ -38,7 +38,7 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val process: Process) 
 
           case selection: Selection =>
             selection.getSource.getType match {
-              case Source.Type.Intermediate => SelectionExecutor.execute(dataSet(nameOf(selection.getRelation)), selection, as)
+              case Source.Type.Temporary => SelectionExecutor.execute(dataSet(nameOf(selection.getRelation)), selection, as)
               case _ => SelectionExecutor.execute(glueContext, selection, as)
             }
 

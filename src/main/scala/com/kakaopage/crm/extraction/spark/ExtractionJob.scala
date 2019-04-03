@@ -14,7 +14,7 @@ class ExtractionJob(val glueContext: GlueContext, val config: Config) extends Jo
   override def run(job: String, execution: String, process: Process): Cohort = {
     val dfs = ExtractionJobExecutor(glueContext, process).execute()
 
-    val base = config.getString("sink.basePath")
+    val base = config.getString("sink.base")
     val partitions = dfs.zipWithIndex.map {
       case (df: DataFrame, i: Int) => {
         val path = f"$base/$job/$execution/$i"

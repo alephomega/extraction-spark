@@ -50,6 +50,10 @@ object Predicates {
       Functions.column(p.getValue, s).isin(p.getElements.asScala: _*)
     }
 
+    case (p: True, s: Seq[Bag]) => {
+      lit(true)
+    }
+
     case (p: Ignorable, s: Seq[Bag]) => {
       if (p.isIgnore) lit(true)
       else eval(p.getPredicate, s)
