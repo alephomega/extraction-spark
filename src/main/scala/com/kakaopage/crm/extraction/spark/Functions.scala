@@ -143,8 +143,6 @@ object Functions {
       case p: IsIn[_] =>
         p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
 
-      case p: True => true
-
       case p: Ignorable =>
         if (p.isIgnore) true
         else eval(p.getPredicate, row)
