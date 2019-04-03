@@ -11,10 +11,5 @@ object SinkExecutor {
     val r: Double = 1.0d / k
 
     ds.df.randomSplit(Array.fill[Double](k) { r })
-
-//    val r = ds.df.repartition(
-//      p.getNumPartitions,
-//      p.getColumns.asScala.map(f => Functions.column(f, Seq(ds))): _*)
-
   }
 }
