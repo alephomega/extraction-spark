@@ -224,7 +224,7 @@ object Functions {
     array(f.getElements.asScala.map(element => lit(column(element, rds))): _*)
   }
 
-  def filter(f: Filter, rds: Seq[Bag]): Column = {
+  def filter(f: ArrayFilter, rds: Seq[Bag]): Column = {
     filter(f.getPredicate, f.getDatabase, f.getTable, f.getField)(column(f.getArray, rds))
   }
 
@@ -364,7 +364,7 @@ object Functions {
       case f: MinOf => minOf(f, ds)
       case f: Explode => explodeCol(f, ds)
       case f: ArrayOf => arrayOf(f, ds)
-      case f: Filter => filter(f, ds)
+      case f: ArrayFilter => filter(f, ds)
       case f: Count => cnt(f, ds)
       case f: Sum => colsum(f, ds)
       case f: Max => colmax(f, ds)
