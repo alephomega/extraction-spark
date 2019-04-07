@@ -143,8 +143,8 @@ object Functions {
       case p: IsIn[_] =>
         p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
 
-      case p: Ignorable =>
-        if (p.isIgnore) true
+      case p: Comment =>
+        if (p.isEnabled) true
         else eval(p.getPredicate, row)
     }
   }
@@ -274,6 +274,11 @@ object Functions {
     not(isnull(column(f.getValue, rds)))
   }
 
+  def paste(f: Paste, rds: Seq[Bag]): Column = {
+    val cols = f.getAttributes.asScala.map(a => column(a, rds))
+    concat_ws(f.getSep, cols: _*)
+  }
+
   def time(f: Time, r: Row): Any = {
     parse(invoke(f.getText, r).asInstanceOf[String])
   }
@@ -348,6 +353,10 @@ object Functions {
     invoke(f.getValue, r) != null
   }
 
+  def paste(f: Paste, r: Row): Any = {
+    f.getAttributes.asScala.map(a => invoke(a, r)).mkString(f.getSep)
+  }
+
   val column: (extraction.Function, Seq[Bag]) => Column = (function: extraction.Function, ds: Seq[Bag]) => {
     function match {
       case f: Time => time(f, ds)
@@ -375,6 +384,7 @@ object Functions {
       case f: Alias => alias(f, ds)
       case f: Null => isNull(f, ds)
       case f: NotNull => isNotNull(f, ds)
+      case f: Paste => paste(f, ds)
     }
   }
 
@@ -398,6 +408,7 @@ object Functions {
       case f: Value => value(f, row)
       case f: Null => isNull(f, row)
       case f: NotNull => isNotNull(f, row)
+      case f: Paste => paste(f, row)
     }
   }
 

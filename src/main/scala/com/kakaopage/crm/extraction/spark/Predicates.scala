@@ -54,8 +54,8 @@ object Predicates {
       lit(true)
     }
 
-    case (p: Ignorable, s: Seq[Bag]) => {
-      if (p.isIgnore) lit(true)
+    case (p: Comment, s: Seq[Bag]) => {
+      if (p.isEnabled) lit(true)
       else eval(p.getPredicate, s)
     }
   }
