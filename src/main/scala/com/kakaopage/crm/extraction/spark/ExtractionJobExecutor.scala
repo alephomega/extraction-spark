@@ -3,6 +3,7 @@ package com.kakaopage.crm.extraction.spark
 import com.amazonaws.services.glue.GlueContext
 import com.kakaopage.crm.extraction._
 import com.kakaopage.crm.extraction.ra._
+import com.kakaopage.crm.extraction.ra.relations.Source
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
@@ -12,14 +13,14 @@ import scala.collection._
 class ExtractionJobExecutor(val glueContext: GlueContext, val process: Process) {
   val sets = mutable.Map[String, Bag]()
 
-  def dataSet(name: String) = {
+  def dataSet(name: String): Bag = {
     sets.get(name) match {
       case Some(ds) => ds
       case _ => throw new ExtractionException("There is no set with name '%s'".format(name))
     }
   }
 
-  def nameOf(rel: Relation) = {
+  def nameOf(rel: Relation): String = {
     rel.getName
   }
 
@@ -35,12 +36,14 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val process: Process) 
         val as = assignment.getVariable
 
         val ds = assignment.getOperation match {
-
-          case selection: Selection =>
-            selection.getSource.getType match {
-              case Source.Type.Temporary => SelectionExecutor.execute(dataSet(nameOf(selection.getRelation)), selection, as)
-              case _ => SelectionExecutor.execute(glueContext, selection, as)
+          case selection: Selection => {
+            val bag = selection.getRelation match {
+              case source: Source => Bag(Loader.load(glueContext, source), source.getName)
+              case _ => dataSet(nameOf(selection.getRelation))
             }
+
+            SelectionExecutor.execute(bag, selection, as)
+          }
 
           case projection: Projection => ProjectionExecutor.execute(
             dataSet(nameOf(projection.getRelation)), projection, as)
