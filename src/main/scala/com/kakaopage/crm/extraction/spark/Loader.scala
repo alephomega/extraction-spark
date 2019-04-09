@@ -2,7 +2,7 @@ package com.kakaopage.crm.extraction.spark
 
 import com.amazonaws.services.glue.GlueContext
 import com.kakaopage.crm.extraction.Catalog
-import com.kakaopage.crm.extraction.ra.Source
+import com.kakaopage.crm.extraction.ra.relations.Source
 import org.apache.spark.sql.DataFrame
 
 object Loader {
