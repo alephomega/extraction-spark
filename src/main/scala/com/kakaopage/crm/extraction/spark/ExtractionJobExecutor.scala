@@ -1,91 +1,73 @@
 package com.kakaopage.crm.extraction.spark
 
-import com.amazonaws.services.glue.GlueContext
+import com.amazonaws.services.glue.util.{GlueArgParser, Job, JsonOptions}
+import com.amazonaws.services.glue.{DynamicFrame, GlueContext}
 import com.kakaopage.crm.extraction._
-import com.kakaopage.crm.extraction.ra._
-import com.kakaopage.crm.extraction.ra.relations.Source
+import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
-import scala.collection._
 
 
-class ExtractionJobExecutor(val glueContext: GlueContext, val process: Process) {
-  val sets = mutable.Map[String, Bag]()
+class ExtractionJobExecutor(val glueContext: GlueContext, val config: Config) extends JobExecutor {
+  override def run(job: String, execution: String, process: Process): Cohort = {
+    val dfs = ProcessExecutor(glueContext, process).execute()
 
-  def dataSet(name: String): Bag = {
-    sets.get(name) match {
-      case Some(ds) => ds
-      case _ => throw new ExtractionException("There is no set with name '%s'".format(name))
-    }
-  }
+    val base = config.getString("sink.base")
+    val partitions = dfs.zipWithIndex.map {
+      case (df: DataFrame, i: Int) => {
+        val path = f"$base/$job/$execution/$i"
 
-  def nameOf(rel: Relation): String = {
-    rel.getName
-  }
+        val dynamicFrame = DynamicFrame(df, glueContext)
+        val count = dynamicFrame.count
 
-
-  def execute(): Array[DataFrame] = {
-    process.getAssignments.asScala.foreach(assignment => execute(assignment))
-    execute(process.getSink)
-  }
-
-  def execute(assignment: Assignment) = {
-    assignment match {
-      case assignment: Assignment => {
-        val as = assignment.getVariable
-
-        val ds = assignment.getOperation match {
-          case selection: Selection => {
-            val bag = selection.getRelation match {
-              case source: Source => Bag(Loader.load(glueContext, source), source.getName)
-              case _ => dataSet(nameOf(selection.getRelation))
-            }
-
-            SelectionExecutor.execute(bag, selection, as)
-          }
-
-          case projection: Projection => ProjectionExecutor.execute(
-            dataSet(nameOf(projection.getRelation)), projection, as)
-
-          case renaming: Renaming => RenamingExecutor.execute(
-            dataSet(nameOf(renaming.getRelation)), renaming, as)
-
-          case grouping: Grouping => GroupingExecutor.execute(
-            dataSet(nameOf(grouping.getRelation)), grouping, as)
-
-          case product: Product => ProductExecutor.execute(
-            dataSet(nameOf(product.firstRelation)), dataSet(nameOf(product.secondRelation)), product, as)
-
-          case join: LeftOuterJoin => LeftOuterJoinExecutor.execute(
-            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
-
-          case join: RightOuterJoin => RightOuterJoinExecutor.execute(
-            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
-
-          case join: FullOuterJoin => FullOuterJoinExecutor.execute(
-            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
-
-          case join: Join => ThetaJoinExecutor.execute(
-            dataSet(nameOf(join.firstRelation)), dataSet(nameOf(join.secondRelation)), join, as)
-
-          case sorting: Sorting => SortingExecutor.execute(
-            dataSet(nameOf(sorting.getRelation)), sorting, as)
-
-          case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(
-            dataSet(nameOf(distinction.getRelation)), distinction, as)
-        }
-
-        sets.put(as, ds)
+        sink(dynamicFrame, split(count, config.getLong("sink.partitionSize")), path)
+        Partition.of(i, path, count)
       }
     }
+
+    Cohort.`with`(process.getName, process.getInterval, partitions.toList.asJava)
   }
 
-  def execute(sink: Sink): Array[DataFrame] = {
-    SinkExecutor.execute(dataSet(nameOf(sink.getRelation)), sink)
+  def sink(dynamicFrame: DynamicFrame, partitions: Int, path: String) = {
+    val ds = glueContext.getSinkWithFormat(
+      connectionType = "s3",
+      options = JsonOptions(f"""{"path": "s3://$path%s"}"""),
+      format = "csv",
+      formatOptions = JsonOptions("""{"writeHeader": false}"""))
+
+    ds.writeDynamicFrame(dynamicFrame.repartition(partitions))
+  }
+
+  def split(count: Long, partitionSize: Long): Int = {
+    val k = math.round(count.toDouble / partitionSize.toDouble).toInt
+    if (k < 1) 1 else k
   }
 }
 
+
 object ExtractionJobExecutor {
-  def apply(glueContext: GlueContext, process: Process): ExtractionJobExecutor = new ExtractionJobExecutor(glueContext, process)
+  def apply(glueContext: GlueContext, config: Config): ExtractionJobExecutor = new ExtractionJobExecutor(glueContext, config)
+
+  def main(args: Array[String]) {
+    val glueContext = new GlueContext(new SparkContext())
+    val config = ConfigFactory.load()
+    val resolvedOptions = GlueArgParser.getResolvedOptions(args, config.getStringList("job.options").asScala.toArray)
+
+    Job.init(resolvedOptions("JOB_NAME"), glueContext, resolvedOptions.asJava)
+    ExtractionJobExecutor(glueContext, config).run(get(resolvedOptions, "description"), resolvedOptions.asJava)
+    Job.commit()
+  }
+
+  private def get(args: Map[String, String], name: String, default: String = null): String = {
+    args.get(name) match {
+      case Some(v) => v
+      case _ =>
+        if (default != null)
+          default
+        else
+          throw new RuntimeException("Required argument missing: " + name)
+    }
+  }
 }
