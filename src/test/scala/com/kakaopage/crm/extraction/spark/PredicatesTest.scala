@@ -48,8 +48,12 @@ class PredicatesTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfte
     events.filter(Predicates.eval(new IsIn[String](new Value(null, "meta.series"), new Constant(Seq("261", "436").asJava)), Seq(Bag(events, "s0")))).show(5, truncate = false)
   }
 
-  test("ignorable test") {
+  test("comment test") {
     events.filter(Predicates.eval(new Comment(new Equals(new Value(null, "id"), new Constant[String]("S3XDfVA2CaRFi3iG3TwjLE4B9E0XjuNq")), true), Seq(Bag(events, "s0")))).show(5, truncate = false)
+  }
+
+  test("null test") {
+    events.filter(Predicates.eval(new Negation(new Null(new Value(null, "meta.episode"))), Seq(Bag(events, "s0")))).show(5, truncate = false)
   }
 
   test("conjunction test") {

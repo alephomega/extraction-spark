@@ -99,19 +99,15 @@ class FunctionsTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfter
     history.select(Functions.column(new Sum(new Value(null, "customer")), Seq(Bag(history, "s0")))).show(1, truncate = false)
   }
 
-  test("is_null test") {
-    history.filter(Functions.column(new Null(new Value(null, "customer")), Seq(Bag(history, "s0")))).show(5, truncate = false)
-  }
-
-  test("is_not_null test") {
-    history.filter(Functions.column(new NotNull(new Value(null, "customer")), Seq(Bag(history, "s0")))).show(5, truncate = false)
-  }
-
   test("max_of test") {
     history.withColumn("array_of", Functions.column(new ArrayOf(List[Function](new Constant[Double](1), new Constant[Double](2.5), new Constant[Double](5)).asJava), Seq(Bag(history, "s0")))).withColumn("max_of", Functions.column(new MaxOf(new Value(null, "array_of")), Seq(Bag(history, "s0")))).show(5, truncate = false)
   }
 
   test("min_of test") {
     history.withColumn("array_of", Functions.column(new ArrayOf(List[Function](new Constant[Double](1), new Constant[Double](2.5), new Constant[Double](5)).asJava), Seq(Bag(history, "s0")))).withColumn("min_of", Functions.column(new MinOf(new Value(null, "array_of")), Seq(Bag(history, "s0")))).show(5, truncate = false)
+  }
+
+  test("paste test") {
+    history.withColumn("paste", Functions.column(new Paste(Seq[Function](new Value(null, "customer"), new Constant("0123456789")).asJava, "-"), Seq(Bag(history, "s0")))).show(5, truncate = false)
   }
 }

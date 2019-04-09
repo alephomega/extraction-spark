@@ -58,5 +58,9 @@ object Predicates {
       if (p.isEnabled) lit(true)
       else eval(p.getPredicate, s)
     }
+
+    case (p: Null, s: Seq[Bag]) => {
+      Functions.column(p.getValue, s).isNull
+    }
   }
 }

@@ -21,7 +21,7 @@ import scala.collection.JavaConverters._
 
 object Functions {
 
-  def parse: (String) => Timestamp = (text: String) => {
+  def parseTime: (String) => Timestamp = (text: String) => {
     new Timestamp(Date.from(
       Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(text))
     ).getTime)
@@ -77,7 +77,7 @@ object Functions {
 
   object UDF {
 
-    def parse = udf(Functions.parse)
+    def parseTime = udf(Functions.parseTime)
 
     def format = udf(Functions.format)
 
@@ -146,6 +146,9 @@ object Functions {
       case p: Comment =>
         if (p.isEnabled) true
         else eval(p.getPredicate, row)
+
+      case p: Null =>
+        invoke(p.getValue, row) == null
     }
   }
 
@@ -169,7 +172,7 @@ object Functions {
   }
 
   def time(f: Time, rds: Seq[Bag]): Column = {
-    UDF.parse(column(f.getText, rds))
+    UDF.parseTime(column(f.getText, rds))
   }
 
   def format(f: TimeFormat, rds: Seq[Bag]): Column = {
@@ -270,17 +273,13 @@ object Functions {
     isnull(column(f.getValue, rds))
   }
 
-  def isNotNull(f: NotNull, rds: Seq[Bag]): Column = {
-    not(isnull(column(f.getValue, rds)))
-  }
-
   def paste(f: Paste, rds: Seq[Bag]): Column = {
     val cols = f.getAttributes.asScala.map(a => column(a, rds))
     concat_ws(f.getSep, cols: _*)
   }
 
   def time(f: Time, r: Row): Any = {
-    parse(invoke(f.getText, r).asInstanceOf[String])
+    parseTime(invoke(f.getText, r).asInstanceOf[String])
   }
 
   def format(f: TimeFormat, r: Row): Any = {
@@ -349,10 +348,6 @@ object Functions {
     invoke(f.getValue, r) == null
   }
 
-  def isNotNull(f: NotNull, r: Row): Any = {
-    invoke(f.getValue, r) != null
-  }
-
   def paste(f: Paste, r: Row): Any = {
     f.getAttributes.asScala.map(a => invoke(a, r)).mkString(f.getSep)
   }
@@ -382,8 +377,6 @@ object Functions {
       case f: Constant[_] => constant(f, ds)
       case f: Value => value(f, ds)
       case f: Alias => alias(f, ds)
-      case f: Null => isNull(f, ds)
-      case f: NotNull => isNotNull(f, ds)
       case f: Paste => paste(f, ds)
     }
   }
@@ -406,8 +399,6 @@ object Functions {
       case f: ArrayOf => arrayOf(f, row)
       case f: Constant[_] => constant(f, row)
       case f: Value => value(f, row)
-      case f: Null => isNull(f, row)
-      case f: NotNull => isNotNull(f, row)
       case f: Paste => paste(f, row)
     }
   }
