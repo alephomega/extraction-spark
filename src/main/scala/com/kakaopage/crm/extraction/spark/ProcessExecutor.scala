@@ -74,6 +74,15 @@ class ProcessExecutor(val glueContext: GlueContext, val process: Process) {
 
           case distinction: DuplicateElimination => DuplicateEliminationExecutor.execute(
             dataSet(nameOf(distinction.getRelation)), distinction, as)
+
+          case union: Union =>
+            UnionExecutor.execute(dataSet(nameOf(union.firstRelation)), dataSet(nameOf(union.secondRelation)), union, as)
+
+          case intersection: Intersection =>
+            IntersectionExecutor.execute(dataSet(nameOf(intersection.firstRelation)), dataSet(nameOf(intersection.secondRelation)), intersection, as)
+
+          case difference: Difference =>
+            DifferenceExecutor.execute(dataSet(nameOf(difference.firstRelation)), dataSet(nameOf(difference.secondRelation)), difference, as)
         }
 
         sets.put(as, ds)
