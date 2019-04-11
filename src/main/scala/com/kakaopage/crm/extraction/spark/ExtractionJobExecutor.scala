@@ -38,7 +38,7 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val config: Config) ex
         }
 
         save(DynamicFrame(df, glueContext), split(count, config.getLong("sink.partitionSize")), path)
-        Catalog.addPartition(glue, job, execution, i, path, config)
+        CatalogService.addPartition(glue, job, execution, i, path, config)
 
         Partition.of(i, path, count)
       }
@@ -83,7 +83,7 @@ object ExtractionJobExecutor {
   }
 }
 
-object Catalog {
+object CatalogService {
   def addPartition(glue: AWSGlue, job: String, execution: String, split: Int, path: String, config: Config) = {
     val database = config.getString("catalog.database")
     val table = config.getString("catalog.table")

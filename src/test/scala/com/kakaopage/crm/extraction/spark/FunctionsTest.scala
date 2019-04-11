@@ -1,8 +1,11 @@
 package com.kakaopage.crm.extraction.spark
 
+import java.util
+
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import com.kakaopage.crm.extraction.Function
 import com.kakaopage.crm.extraction.functions._
+import com.kakaopage.crm.extraction.predicates.{Conjunction, Equals, IsIn}
+import com.kakaopage.crm.extraction.{Function, Predicate}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
@@ -33,6 +36,11 @@ class FunctionsTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfter
 
   test("array_of test") {
     history.withColumn("array_of", Functions.column(new ArrayOf(List[Function](new Constant[String]("a"), new Constant[String]("b"), new Constant[String]("c")).asJava), Seq(Bag(history, "s0")))).show(5, truncate = false)
+  }
+
+  test("array_filter test") {
+    history.withColumn("array_filter", Functions.column(new Cardinality(new ArrayFilter(new Value(null, "events"),
+      new Conjunction(Seq[Predicate](new Equals(new Value(null, "event"), new Constant[String]("READING")), new IsIn(new Value(null, "meta.series"), new Constant[util.List[String]](Seq("45", "604").asJava))).asJava), "s0")), Seq(Bag(history, "s0")))).show(5, truncate = false)
   }
 
   test("cardinality test") {

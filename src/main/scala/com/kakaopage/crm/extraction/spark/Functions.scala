@@ -12,10 +12,10 @@ import com.kakaopage.crm.extraction.Predicate
 import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
 import org.apache.commons.lang3.time.DateUtils
+import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Column, Row}
 
 import scala.collection.JavaConverters._
 
@@ -155,19 +155,19 @@ object Functions {
   def is[T : Manifest](x: Any) = manifest.runtimeClass.isInstance(x)
   def as[T : Manifest](x: Any) : Option[T] = if (manifest.runtimeClass.isInstance(x)) Some(x.asInstanceOf[T]) else None
 
-  def filter(condition: Predicate, database: String, table: String, field: String) = {
+  def filter(condition: Predicate, dataType: DataType) = {
     condition match {
       case c: Conjunction => udf((rs: Seq[Row]) =>
-        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r))), schema(database, table, field))
+        rs.filter(r => !c.getPredicates.asScala.exists(p => !eval(p, r))), dataType)
 
       case c: Disjunction => udf((rs: Seq[Row]) =>
-        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r))), schema(database, table, field))
+        rs.filter(r => c.getPredicates.asScala.exists(p => eval(p, r))), dataType)
 
       case c: Negation => udf((rs: Seq[Row]) =>
-        rs.filter(r => !eval(c.getPredicate, r)), schema(database, table, field))
+        rs.filter(r => !eval(c.getPredicate, r)), dataType)
 
       case c: Predicate => udf((rs: Seq[Row]) =>
-        rs.filter(r => eval(c, r)), schema(database, table, field))
+        rs.filter(r => eval(c, r)), dataType)
     }
   }
 
@@ -228,7 +228,10 @@ object Functions {
   }
 
   def filter(f: ArrayFilter, rds: Seq[Bag]): Column = {
-    filter(f.getPredicate, f.getDatabase, f.getTable, f.getField)(column(f.getArray, rds))
+    rds.find(_.name == f.getRelation) match {
+      case Some(ds) => filter(f.getPredicate, ds.df.schema.apply(f.getField).dataType)(column(f.getArray, rds))
+      case _ => throw new ExtractionException(s"Can't find relation '${f.getRelation}'")
+    }
   }
 
   def cnt(f: Count, rds: Seq[Bag]): Column = {
@@ -340,8 +343,17 @@ object Functions {
     f.getValue
   }
 
+  def value(a: Any, cols: Seq[String]): Any = {
+    if (cols.isEmpty) a
+    else {
+      val r = a.asInstanceOf[Row]
+      value(r.get(r.fieldIndex(cols.head)), cols.tail)
+    }
+  }
+
   def value(f: Value, r: Row): Any = {
-    r.get(r.fieldIndex(f.getAttribute))
+    val s = f.getAttribute.split("\\.")
+    value(r, s)
   }
 
   def isNull(f: Null, r: Row): Any = {
