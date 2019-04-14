@@ -55,8 +55,11 @@ object Predicates {
     }
 
     case (p: Comment, s: Seq[Bag]) => {
-      if (p.isEnabled) lit(true)
-      else eval(p.getPredicate, s)
+      lit(true)
+    }
+
+    case (p: Nop, s: Seq[Bag]) => {
+      eval(p.getPredicate, s)
     }
 
     case (p: Null, s: Seq[Bag]) => {

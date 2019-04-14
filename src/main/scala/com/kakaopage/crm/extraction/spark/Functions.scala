@@ -144,8 +144,10 @@ object Functions {
         p.getElements.asScala.exists(element => invoke(p.getValue, row).equals(element))
 
       case p: Comment =>
-        if (p.isEnabled) true
-        else eval(p.getPredicate, row)
+        true
+
+      case p: Nop =>
+        eval(p.getPredicate, row)
 
       case p: Null =>
         invoke(p.getValue, row) == null

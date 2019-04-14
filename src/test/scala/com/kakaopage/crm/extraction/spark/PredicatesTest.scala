@@ -49,7 +49,11 @@ class PredicatesTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfte
   }
 
   test("comment test") {
-    events.filter(Predicates.eval(new Comment(new Equals(new Value(null, "id"), new Constant[String]("S3XDfVA2CaRFi3iG3TwjLE4B9E0XjuNq")), true), Seq(Bag(events, "s0")))).show(5, truncate = false)
+    events.filter(Predicates.eval(new Comment(new Equals(new Value(null, "id"), new Constant[String]("S3XDfVA2CaRFi3iG3TwjLE4B9E0XjuNq"))), Seq(Bag(events, "s0")))).show(5, truncate = false)
+  }
+
+  test("nop test") {
+    events.filter(Predicates.eval(new Nop(new Equals(new Value(null, "id"), new Constant[String]("S3XDfVA2CaRFi3iG3TwjLE4B9E0XjuNq"))), Seq(Bag(events, "s0")))).show(5, truncate = false)
   }
 
   test("null test") {
