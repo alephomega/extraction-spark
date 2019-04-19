@@ -1,8 +1,7 @@
 package com.kakaopage.crm.extraction.spark
 
-import com.amazonaws.services.glue.model.{Partition => _, _}
 import com.amazonaws.services.glue.util.{GlueArgParser, Job, JsonOptions}
-import com.amazonaws.services.glue.{AWSGlue, AWSGlueClientBuilder, DynamicFrame, GlueContext}
+import com.amazonaws.services.glue.{AWSGlueClientBuilder, DynamicFrame, GlueContext}
 import com.kakaopage.crm.extraction._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.spark.SparkContext
@@ -58,6 +57,7 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val config: Config) ex
   def split(count: Long, partitionSize: Long): Int = math.max(1, math.round(count.toDouble / partitionSize.toDouble).toInt)
 }
 
+
 object ExtractionJobExecutor {
   def apply(glueContext: GlueContext, config: Config): ExtractionJobExecutor = new ExtractionJobExecutor(glueContext, config)
 
@@ -80,38 +80,5 @@ object ExtractionJobExecutor {
         else
           throw new RuntimeException("Required argument missing: " + name)
     }
-  }
-}
-
-object CatalogService {
-  def addPartition(glue: AWSGlue, job: String, execution: String, split: Int, path: String, config: Config) = {
-    val database = config.getString("catalog.database")
-    val table = config.getString("catalog.table")
-
-    val sd = glue.getTable(
-      new GetTableRequest()
-        .withDatabaseName(database)
-        .withName(table)).getTable.getStorageDescriptor
-
-    val partitionInput =
-      new PartitionInput()
-        .withValues(job, execution, split.toString)
-        .withStorageDescriptor(
-          new StorageDescriptor()
-            .withLocation(f"s3://$path%s")
-            .withInputFormat(sd.getInputFormat)
-            .withOutputFormat(sd.getOutputFormat)
-            .withSerdeInfo(sd.getSerdeInfo)
-            .withColumns(sd.getColumns)
-            .withParameters(Map("classification" -> "csv", "typeOfData" -> "file").asJava)
-            .withCompressed(false)
-            .withNumberOfBuckets(-1)
-            .withStoredAsSubDirectories(false))
-
-    glue.createPartition(
-      new CreatePartitionRequest()
-        .withDatabaseName(database)
-        .withTableName(table)
-        .withPartitionInput(partitionInput))
   }
 }
