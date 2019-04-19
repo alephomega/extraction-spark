@@ -7,6 +7,7 @@ import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates.{Conjunction, Equals, IsIn}
 import com.kakaopage.crm.extraction.{Function, Predicate}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.functions._
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
 import scala.collection.JavaConverters._

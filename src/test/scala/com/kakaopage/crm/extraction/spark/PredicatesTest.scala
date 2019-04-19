@@ -5,10 +5,10 @@ import com.kakaopage.crm.extraction.functions._
 import com.kakaopage.crm.extraction.predicates._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{BeforeAndAfter, FunSuite}
-
+import org.apache.spark.sql.functions._
 import scala.collection.JavaConverters._
 
-class PredicatesTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfter {
+class PredicatesTest extends FunSuite with DataFrameSuiteBase with BeforeAndAfter with Serializable {
 
   var events: DataFrame = _
 
