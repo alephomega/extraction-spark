@@ -1,12 +1,13 @@
 package com.kakaopage.crm.extraction.spark
 
-import com.amazonaws.services.glue.model.{Partition => _}
 import com.amazonaws.services.glue.util.{GlueArgParser, Job, JsonOptions}
 import com.amazonaws.services.glue.{AWSGlueClientBuilder, DynamicFrame, GlueContext}
-import com.kakaopage.crm.extraction._
+import com.kakaopage.crm.extraction.{Cohort, JobExecutor, Partition, Process, _}
+import com.kakaopage.crm.extraction.spark._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql._
+
 
 import scala.collection.JavaConverters._
 
