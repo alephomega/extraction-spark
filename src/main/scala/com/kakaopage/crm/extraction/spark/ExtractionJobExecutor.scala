@@ -21,21 +21,20 @@ class ExtractionJobExecutor(val glueContext: GlueContext, val config: Config) ex
       case (dataFrame: DataFrame, i: Int) => {
         val path = f"$base/job=$job/execution=$execution/split=$i/"
 
-        val count = dataFrame.count
         val sink: Sink = process.getSink
-
         var df = dataFrame
         if (sink.needSampling()) {
           val size = sink.getSampling.getSize
-
-          if (count > 0) {
+          df = dataFrame.limit(size.toInt)
+            /*
             val fraction = size.toDouble / dfs.length / count
             if (fraction < 1.0) {
               df = dataFrame.sample(withReplacement = false, fraction)
             }
-          }
+            */
         }
 
+        val count = df.count()
         save(DynamicFrame(df, glueContext), split(count, config.getLong("sink.partitionSize")), path)
         CatalogService.addPartition(glue, job, execution, i, path, config)
 
