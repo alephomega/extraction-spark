@@ -283,6 +283,10 @@ object Functions {
     concat_ws(f.getSep, cols: _*)
   }
 
+  def inStr(f: InStr, rds: Seq[Bag]): Column = {
+    instr(column(f.getStr, rds), f.getSubstr)
+  }
+
   def time(f: Time, r: Row): Any = {
     parseTime(invoke(f.getText, r).asInstanceOf[String])
   }
@@ -366,6 +370,10 @@ object Functions {
     f.getAttributes.asScala.map(a => invoke(a, r)).mkString(f.getSep)
   }
 
+  def inStr(f: InStr, r: Row): Any = {
+    invoke(f.getStr, r).asInstanceOf[String].indexOf(f.getSubstr) + 1
+  }
+
   val column: (extraction.Function, Seq[Bag]) => Column = (function: extraction.Function, ds: Seq[Bag]) => {
     function match {
       case f: Time => time(f, ds)
@@ -392,6 +400,7 @@ object Functions {
       case f: Value => value(f, ds)
       case f: Alias => alias(f, ds)
       case f: Paste => paste(f, ds)
+      case f: InStr => inStr(f, ds)
     }
   }
 
@@ -414,6 +423,7 @@ object Functions {
       case f: Constant[_] => constant(f, row)
       case f: Value => value(f, row)
       case f: Paste => paste(f, row)
+      case f: InStr => inStr(f, row)
     }
   }
 
